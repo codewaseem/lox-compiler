@@ -102,7 +102,7 @@ pub fn main() !void {
             ')' => {
                 try tokens.append(RPARENToken);
             },
-            else => unreachable,
+            else => break,
         }
     }
 
