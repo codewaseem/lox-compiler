@@ -123,6 +123,7 @@ pub fn main() !void {
         const c = file_contents[cursorPos];
 
         switch (c) {
+            '\t', ' ' => continue,
             '\n' => {
                 currentLine += 1;
             },
