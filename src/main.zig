@@ -162,7 +162,7 @@ pub fn main() !void {
             '/' => {
                 if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '/') {
                     cursorPos += 1;
-                    while (cursorPos < file_contents.len and file_contents[cursorPos] != '\n') {
+                    while (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] != '\n') {
                         cursorPos += 1;
                     }
                 } else {
