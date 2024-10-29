@@ -78,6 +78,8 @@ const MinusToken = Token.init(.MINUS, "-", null);
 const PlusToken = Token.init(.PLUS, "+", null);
 const SemicolonToken = Token.init(.SEMICOLON, ";", null);
 const StarToken = Token.init(.STAR, "*", null);
+const AssignmentToken = Token.init(.EQUAL, "=", null);
+const EqualsToken = Token.init(.EQUAL_EQUAL, "==", null);
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -107,10 +109,23 @@ pub fn main() !void {
     var currentLine: usize = 1;
     var errorCount: usize = 0;
     // Uncomment this block to pass the first stage
-    for (file_contents) |c| {
+
+    var cursorPos: usize = 0;
+
+    while (cursorPos < file_contents.len) : (cursorPos += 1) {
+        const c = file_contents[cursorPos];
+
         switch (c) {
             '\n' => {
                 currentLine += 1;
+            },
+            '=' => {
+                if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '=') {
+                    cursorPos += 1;
+                    try tokens.append(EqualsToken);
+                } else {
+                    try tokens.append(AssignmentToken);
+                }
             },
             '(' => try tokens.append(LPARENToken),
             ')' => try tokens.append(RPARENToken),
