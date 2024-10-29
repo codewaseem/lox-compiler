@@ -86,6 +86,7 @@ const LessThanToken = Token.init(.LESS, "<", null);
 const GreaterThanToken = Token.init(.GREATER, ">", null);
 const LessThanOrEqualToken = Token.init(.LESS_EQUAL, "<=", null);
 const GreaterThanOrEqualToken = Token.init(.GREATER_EQUAL, ">=", null);
+const SlashToken = Token.init(.SLASH, "/", null);
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -155,6 +156,16 @@ pub fn main() !void {
                     try tokens.append(GreaterThanOrEqualToken);
                 } else {
                     try tokens.append(GreaterThanToken);
+                }
+            },
+            '/' => {
+                if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '/') {
+                    cursorPos += 1;
+                    while (cursorPos < file_contents.len and file_contents[cursorPos] != '\n') {
+                        cursorPos += 1;
+                    }
+                } else {
+                    try tokens.append(SlashToken);
                 }
             },
             '(' => try tokens.append(LPARENToken),
