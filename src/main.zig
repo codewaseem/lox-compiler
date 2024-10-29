@@ -131,6 +131,7 @@ pub fn main() !void {
             },
             '!' => {
                 if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '=') {
+                    cursorPos += 1;
                     try tokens.append(InEqualityToken);
                 } else {
                     try tokens.append(NegationToken);
