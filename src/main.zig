@@ -80,6 +80,8 @@ const SemicolonToken = Token.init(.SEMICOLON, ";", null);
 const StarToken = Token.init(.STAR, "*", null);
 const AssignmentToken = Token.init(.EQUAL, "=", null);
 const EqualsToken = Token.init(.EQUAL_EQUAL, "==", null);
+const NegationToken = Token.init(.BANG, "!", null);
+const InEqualityToken = Token.init(.BANG_EQUAL, "!=", null);
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -125,6 +127,13 @@ pub fn main() !void {
                     try tokens.append(EqualsToken);
                 } else {
                     try tokens.append(AssignmentToken);
+                }
+            },
+            '!' => {
+                if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '=') {
+                    try tokens.append(InEqualityToken);
+                } else {
+                    try tokens.append(NegationToken);
                 }
             },
             '(' => try tokens.append(LPARENToken),
