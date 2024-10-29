@@ -61,7 +61,7 @@ const Token = struct {
     }
 };
 
-const EOFToken = Token{ .lexeme = "EOF", .type = .EOF, .literal = null };
+const EOFToken = Token{ .lexeme = "", .type = .EOF, .literal = null };
 
 const LPARENToken = Token{ .lexeme = "(", .literal = null, .type = .LEFT_PAREN };
 
