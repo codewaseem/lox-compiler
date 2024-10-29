@@ -1,5 +1,72 @@
 const std = @import("std");
 
+const MyErrors = error{TokenNotFound};
+
+const TokenType = enum {
+    LEFT_PAREN,
+    RIGHT_PAREN,
+    LEFT_BRACE,
+    RIGHT_BRACE,
+    COMMA,
+    DOT,
+    MINUS,
+    PLUS,
+    SEMICOLON,
+    SLASH,
+    STAR,
+
+    // One or two character tokens.
+    BANG,
+    BANG_EQUAL,
+    EQUAL,
+    EQUAL_EQUAL,
+    GREATER,
+    GREATER_EQUAL,
+    LESS,
+    LESS_EQUAL,
+
+    // Literals.
+    IDENTIFIER,
+    STRING,
+    NUMBER,
+
+    // Keywords.
+    AND,
+    CLASS,
+    ELSE,
+    FALSE,
+    FUN,
+    FOR,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    SUPER,
+    THIS,
+    TRUE,
+    VAR,
+    WHILE,
+
+    EOF,
+};
+
+const Token = struct {
+    type: TokenType = undefined,
+    lexeme: []const u8,
+    literal: ?[]u8,
+
+    fn print(self: *Token) void {
+        std.debug.print("{s} {s} {?s}\n", .{ @tagName(self.type), self.lexeme, self.literal });
+    }
+};
+
+const EOFToken = Token{ .lexeme = "EOF", .type = .EOF, .literal = null };
+
+const LPARENToken = Token{ .lexeme = "(", .literal = null, .type = .LEFT_PAREN };
+
+const RPARENToken = Token{ .lexeme = ")", .literal = null, .type = .RIGHT_PAREN };
+
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     std.debug.print("Logs from your program will appear here!\n", .{});
@@ -23,10 +90,25 @@ pub fn main() !void {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
+    var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
+    defer tokens.deinit();
+
     // Uncomment this block to pass the first stage
-    if (file_contents.len > 0) {
-        @panic("Scanner not implemented");
-    } else {
-        try std.io.getStdOut().writer().print("EOF  null\n", .{}); // Placeholder, remove this line when implementing the scanner
+    for (file_contents) |c| {
+        switch (c) {
+            '(' => {
+                try tokens.append(LPARENToken);
+            },
+            ')' => {
+                try tokens.append(RPARENToken);
+            },
+            else => unreachable,
+        }
+    }
+
+    try tokens.append(EOFToken);
+
+    for (tokens.items) |*token| {
+        token.print();
     }
 }
