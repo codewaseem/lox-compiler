@@ -169,6 +169,25 @@ pub fn main() !void {
                     try tokens.append(SlashToken);
                 }
             },
+            '"' => {
+                const strStart = cursorPos;
+                const strEnd: usize = while (cursorPos + 1 < file_contents.len) {
+                    cursorPos += 1;
+                    if (file_contents[cursorPos] == '"') {
+                        break cursorPos;
+                    }
+                } else 0;
+
+                if (strEnd == 0) {
+                    errorCount += 1;
+                    std.debug.print("[line {d}] Error: Unterminated string.\n", .{currentLine});
+                    continue;
+                }
+
+                const strLex = file_contents[strStart .. strEnd + 1];
+                const strLit = file_contents[strStart + 1 .. strEnd];
+                try tokens.append(Token{ .type = .STRING, .lexeme = strLex, .literal = strLit });
+            },
             '(' => try tokens.append(LPARENToken),
             ')' => try tokens.append(RPARENToken),
             '{' => try tokens.append(LBRACEToken),
