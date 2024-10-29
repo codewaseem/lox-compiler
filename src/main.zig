@@ -58,20 +58,26 @@ const Token = struct {
     lexeme: []const u8,
     literal: ?[]u8,
 
+    fn init(tokenType: TokenType, lexeme: []const u8, literal: ?[]u8) Token {
+        return Token{ .type = tokenType, .lexeme = lexeme, .literal = literal };
+    }
+
     fn print(self: *Token) !void {
         try stdOutWriter.print("{s} {s} {?s}\n", .{ @tagName(self.type), self.lexeme, self.literal });
     }
 };
 
-const EOFToken = Token{ .lexeme = "", .type = .EOF, .literal = null };
-
-const LPARENToken = Token{ .lexeme = "(", .literal = null, .type = .LEFT_PAREN };
-
-const RPARENToken = Token{ .lexeme = ")", .literal = null, .type = .RIGHT_PAREN };
-
-const LBRACEToken = Token{ .lexeme = "{", .literal = null, .type = .LEFT_BRACE };
-
-const RBRACEToken = Token{ .lexeme = "}", .literal = null, .type = .RIGHT_BRACE };
+const EOFToken = Token.init(.EOF, "", null);
+const LPARENToken = Token.init(.LEFT_PAREN, "(", null);
+const RPARENToken = Token.init(.RIGHT_PAREN, ")", null);
+const LBRACEToken = Token.init(.LEFT_BRACE, "{", null);
+const RBRACEToken = Token.init(.RIGHT_BRACE, "}", null);
+const CommaToken = Token.init(.COMMA, ",", null);
+const DotToken = Token.init(.DOT, ".", null);
+const MinusToken = Token.init(.MINUS, "-", null);
+const PlusToken = Token.init(.PLUS, "+", null);
+const SemicolonToken = Token.init(.SEMICOLON, ";", null);
+const StarToken = Token.init(.STAR, "*", null);
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -101,18 +107,16 @@ pub fn main() !void {
     // Uncomment this block to pass the first stage
     for (file_contents) |c| {
         switch (c) {
-            '(' => {
-                try tokens.append(LPARENToken);
-            },
-            ')' => {
-                try tokens.append(RPARENToken);
-            },
-            '{' => {
-                try tokens.append(LBRACEToken);
-            },
-            '}' => {
-                try tokens.append(RBRACEToken);
-            },
+            '(' => try tokens.append(LPARENToken),
+            ')' => try tokens.append(RPARENToken),
+            '{' => try tokens.append(LBRACEToken),
+            '}' => try tokens.append(RBRACEToken),
+            ',' => try tokens.append(CommaToken),
+            '.' => try tokens.append(DotToken),
+            '-' => try tokens.append(MinusToken),
+            '+' => try tokens.append(PlusToken),
+            ';' => try tokens.append(SemicolonToken),
+            '*' => try tokens.append(StarToken),
             else => continue,
         }
     }
