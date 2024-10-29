@@ -104,9 +104,14 @@ pub fn main() !void {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     defer tokens.deinit();
 
+    var currentLine: usize = 1;
+    var errorCount: usize = 0;
     // Uncomment this block to pass the first stage
     for (file_contents) |c| {
         switch (c) {
+            '\n' => {
+                currentLine += 1;
+            },
             '(' => try tokens.append(LPARENToken),
             ')' => try tokens.append(RPARENToken),
             '{' => try tokens.append(LBRACEToken),
@@ -117,7 +122,10 @@ pub fn main() !void {
             '+' => try tokens.append(PlusToken),
             ';' => try tokens.append(SemicolonToken),
             '*' => try tokens.append(StarToken),
-            else => continue,
+            else => {
+                errorCount += 1;
+                std.debug.print("[line {d}] Error: Unexpected character: {c}\n", .{ currentLine, c });
+            },
         }
     }
 
@@ -125,5 +133,9 @@ pub fn main() !void {
 
     for (tokens.items) |*token| {
         try token.print();
+    }
+
+    if (errorCount > 0) {
+        std.process.exit(65);
     }
 }
