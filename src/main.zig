@@ -69,6 +69,10 @@ const LPARENToken = Token{ .lexeme = "(", .literal = null, .type = .LEFT_PAREN }
 
 const RPARENToken = Token{ .lexeme = ")", .literal = null, .type = .RIGHT_PAREN };
 
+const LBRACEToken = Token{ .lexeme = "{", .literal = null, .type = .LEFT_BRACE };
+
+const RBRACEToken = Token{ .lexeme = "}", .literal = null, .type = .RIGHT_BRACE };
+
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 
@@ -91,7 +95,6 @@ pub fn main() !void {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
-    try std.io.getStdErr().writeAll(file_contents);
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     defer tokens.deinit();
 
@@ -103,6 +106,12 @@ pub fn main() !void {
             },
             ')' => {
                 try tokens.append(RPARENToken);
+            },
+            '{' => {
+                try tokens.append(LBRACEToken);
+            },
+            '}' => {
+                try tokens.append(RBRACEToken);
             },
             else => continue,
         }
