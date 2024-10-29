@@ -51,13 +51,15 @@ const TokenType = enum {
     EOF,
 };
 
+const stdOutWriter = std.io.getStdOut().writer();
+
 const Token = struct {
     type: TokenType = undefined,
     lexeme: []const u8,
     literal: ?[]u8,
 
-    fn print(self: *Token) void {
-        std.debug.print("{s} {s} {?s}\n", .{ @tagName(self.type), self.lexeme, self.literal });
+    fn print(self: *Token) !void {
+        try stdOutWriter.print("{s} {s} {?s}\n", .{ @tagName(self.type), self.lexeme, self.literal });
     }
 };
 
@@ -69,7 +71,6 @@ const RPARENToken = Token{ .lexeme = ")", .literal = null, .type = .RIGHT_PAREN 
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
-    std.debug.print("Logs from your program will appear here!\n", .{});
 
     const args = try std.process.argsAlloc(std.heap.page_allocator);
     defer std.process.argsFree(std.heap.page_allocator, args);
@@ -90,6 +91,7 @@ pub fn main() !void {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
+    try std.io.getStdErr().writeAll(file_contents);
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     defer tokens.deinit();
 
@@ -102,13 +104,13 @@ pub fn main() !void {
             ')' => {
                 try tokens.append(RPARENToken);
             },
-            else => break,
+            else => continue,
         }
     }
 
     try tokens.append(EOFToken);
 
     for (tokens.items) |*token| {
-        token.print();
+        try token.print();
     }
 }
