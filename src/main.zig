@@ -82,6 +82,10 @@ const AssignmentToken = Token.init(.EQUAL, "=", null);
 const EqualsToken = Token.init(.EQUAL_EQUAL, "==", null);
 const NegationToken = Token.init(.BANG, "!", null);
 const InEqualityToken = Token.init(.BANG_EQUAL, "!=", null);
+const LessThanToken = Token.init(.LESS, "<", null);
+const GreaterThanToken = Token.init(.GREATER, ">", null);
+const LessThanOrEqualToken = Token.init(.LESS_EQUAL, "<=", null);
+const GreaterThanOrEqualToken = Token.init(.GREATER_EQUAL, ">=", null);
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -135,6 +139,22 @@ pub fn main() !void {
                     try tokens.append(InEqualityToken);
                 } else {
                     try tokens.append(NegationToken);
+                }
+            },
+            '<' => {
+                if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '=') {
+                    cursorPos += 1;
+                    try tokens.append(LessThanOrEqualToken);
+                } else {
+                    try tokens.append(LessThanToken);
+                }
+            },
+            '>' => {
+                if (cursorPos + 1 < file_contents.len and file_contents[cursorPos + 1] == '=') {
+                    cursorPos += 1;
+                    try tokens.append(GreaterThanOrEqualToken);
+                } else {
+                    try tokens.append(GreaterThanToken);
                 }
             },
             '(' => try tokens.append(LPARENToken),
