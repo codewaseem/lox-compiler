@@ -135,21 +135,43 @@ pub const Scanner = struct {
     source: []const u8,
     tokens: std.ArrayList(Token),
     errors: std.ArrayList(Error),
+    reserved_keywords_map: std.StringHashMap(TokenType),
     start: usize = 0,
     currentLine: usize = 1,
     currentPos: usize = 0,
 
-    pub fn new(source: []const u8, allocator: std.mem.Allocator) Scanner {
+    pub fn new(source: []const u8, allocator: std.mem.Allocator) !Scanner {
+        var keywords_map = std.StringHashMap(TokenType).init(allocator);
+        {
+            try keywords_map.put("and", .AND);
+            try keywords_map.put("class", .CLASS);
+            try keywords_map.put("else", .ELSE);
+            try keywords_map.put("false", .FALSE);
+            try keywords_map.put("true", .TRUE);
+            try keywords_map.put("for", .FOR);
+            try keywords_map.put("fun", .FUN);
+            try keywords_map.put("if", .IF);
+            try keywords_map.put("nil", .NIL);
+            try keywords_map.put("or", .OR);
+            try keywords_map.put("print", .PRINT);
+            try keywords_map.put("return", .RETURN);
+            try keywords_map.put("super", .SUPER);
+            try keywords_map.put("this", .THIS);
+            try keywords_map.put("var", .VAR);
+            try keywords_map.put("while", .WHILE);
+        }
         return .{
             .source = source,
             .tokens = std.ArrayList(Token).init(allocator),
             .errors = std.ArrayList(Error).init(allocator),
+            .reserved_keywords_map = keywords_map,
         };
     }
 
     pub fn deinit(self: *Scanner) void {
         self.tokens.deinit();
         self.errors.deinit();
+        self.reserved_keywords_map.deinit();
     }
 
     fn readChar(self: *Scanner) u8 {
@@ -256,6 +278,14 @@ pub const Scanner = struct {
         }
     }
 
+    fn isValidIndentifierFirstChar(_: *Scanner, c: u8) bool {
+        return c == '_' or std.ascii.isAlphabetic(c);
+    }
+
+    fn isValidIdentifierChar(self: *Scanner, c: u8) bool {
+        return self.isValidIndentifierFirstChar(c) or std.ascii.isDigit(c);
+    }
+
     pub fn scanTokens(self: *Scanner) ![]const Token {
         while (!self.endOfFile()) : (self.jumpToNextChar()) {
             self.start = self.currentPos;
@@ -284,7 +314,21 @@ pub const Scanner = struct {
                 '+' => try self.addNullLiteralToken(.PLUS),
                 ';' => try self.addNullLiteralToken(.SEMICOLON),
                 '*' => try self.addNullLiteralToken(.STAR),
-                else => try self.addUnexpectedCharacterError(),
+                else => {
+                    if (self.isValidIndentifierFirstChar(c)) {
+                        while (self.canJumpToNextChar() and self.isValidIdentifierChar(self.getNextChar())) {
+                            self.jumpToNextChar();
+                        }
+                        const key = self.source[self.start .. self.currentPos + 1];
+                        if (self.reserved_keywords_map.contains(key)) {
+                            try self.addNullLiteralToken(self.reserved_keywords_map.get(key).?);
+                        } else {
+                            try self.addNullLiteralToken(.IDENTIFIER);
+                        }
+                    } else {
+                        try self.addUnexpectedCharacterError();
+                    }
+                },
             }
         }
 
@@ -301,7 +345,7 @@ fn compareOutputWithTokensOutput(expected_output: []const u8, file_contents: []c
     var runtime_start: usize = 0;
     _ = &runtime_start;
 
-    var scanner = Scanner.new(file_contents[runtime_start..], std.testing.allocator);
+    var scanner = try Scanner.new(file_contents[runtime_start..], std.testing.allocator);
     defer scanner.deinit();
 
     const tokens = try scanner.scanTokens();
@@ -516,4 +560,28 @@ test "can scan for numbers" {
     ;
 
     try compareOutputWithTokensOutput(expected_output, file_contents);
+}
+
+test "can scan for identifier" {
+    const file_contents =
+        \\foo bar _hello
+        \\var foo = 10;
+    ;
+    const expected_output =
+        \\IDENTIFIER foo null
+        \\IDENTIFIER bar null
+        \\IDENTIFIER _hello null
+        \\VAR var null
+        \\IDENTIFIER foo null
+        \\EQUAL = null
+        \\NUMBER 10 10.0
+        \\SEMICOLON ; null
+        \\EOF  null
+        \\
+    ;
+
+    try compareOutputWithTokensOutput(
+        expected_output,
+        file_contents,
+    );
 }
