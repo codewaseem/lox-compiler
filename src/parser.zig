@@ -107,7 +107,13 @@ pub const Parser = struct {
         if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .BOOL = true } });
         if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .NIL = {} } });
 
-        if (self.match(.{ .NUMBER, .STRING })) return self.newExpr(
+        if (self.match(.{.NUMBER})) return self.newExpr(
+            .{
+                .Primary = .{ .STRING_OR_NUMBER = self.previous().literal.? },
+            },
+        );
+
+        if (self.match(.{.STRING})) return self.newExpr(
             .{
                 .Primary = .{ .STRING_OR_NUMBER = self.previous().literal.? },
             },
