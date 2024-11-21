@@ -2,40 +2,34 @@ const std = @import("std");
 const Types = @import("types.zig");
 
 const Token = Types.Token;
-const StringNumberLiteral = Types.StringNumberLiteral;
+const Literal = Types.Literal;
 const TokenType = Types.TokenType;
 
-const PrimaryExpr = union(enum) {
-    BOOL: bool,
-    NIL: void,
-    STRING_OR_NUMBER: StringNumberLiteral,
-
-    pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-        switch (this) {
-            .BOOL => {
-                try std.fmt.format(writer, "{}", .{this.BOOL});
-            },
-            .NIL => {
-                try std.fmt.format(writer, "{s}", .{"nil"});
-            },
-            .STRING_OR_NUMBER => {
-                try std.fmt.format(writer, "{}", .{this.STRING_OR_NUMBER});
-            },
-        }
-    }
-
-    // pub fn format(value: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-    //     switch (value) {
-    //         .False => {},
-    //     }
-
-    //     try std.fmt.format(writer, "{}", .{
-    //         value.value,
-    //     });
-    // }
-};
-
 const Expr = union(enum) {
+    pub const PrimaryExpr = union(enum) {
+        bool: bool,
+        nil: void,
+        literal: Literal,
+        group: *Expr,
+
+        pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+            switch (this) {
+                .bool => {
+                    try std.fmt.format(writer, "{}", .{this.bool});
+                },
+                .nil => {
+                    try std.fmt.format(writer, "{s}", .{"nil"});
+                },
+                .literal => {
+                    try std.fmt.format(writer, "{}", .{this.literal});
+                },
+                .group => {
+                    try std.fmt.format(writer, "(group {})", .{this.group.*});
+                },
+            }
+        }
+    };
+
     Primary: PrimaryExpr,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
@@ -92,32 +86,37 @@ pub const Parser = struct {
     }
 
     fn match(self: *Parser, token_types: anytype) bool {
-        inline for (std.meta.fields(@TypeOf(token_types))) |field| {
+        return inline for (std.meta.fields(@TypeOf(token_types))) |field| {
             const value = @field(token_types, field.name);
             if (self.check(value)) {
                 _ = self.advance();
                 return true;
             }
-            return false;
-        }
+        } else false;
+    }
+
+    fn consume(self: *Parser, token_type: TokenType) Token {
+        if (self.check(token_type)) return self.advance();
+
+        @panic("handle error");
     }
 
     fn primary(self: *Parser) !*Expr {
-        if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .BOOL = false } });
-        if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .BOOL = true } });
-        if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .NIL = {} } });
+        if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .bool = false } });
+        if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .bool = true } });
+        if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .nil = {} } });
 
-        if (self.match(.{.NUMBER})) return self.newExpr(
+        if (self.match(.{ .NUMBER, .STRING })) return self.newExpr(
             .{
-                .Primary = .{ .STRING_OR_NUMBER = self.previous().literal.? },
+                .Primary = .{ .literal = self.previous().literal.? },
             },
         );
 
-        if (self.match(.{.STRING})) return self.newExpr(
-            .{
-                .Primary = .{ .STRING_OR_NUMBER = self.previous().literal.? },
-            },
-        );
+        if (self.match(.{.LEFT_PAREN})) {
+            const expr = try self.primary();
+            _ = self.consume(.RIGHT_PAREN);
+            return try self.newExpr(.{ .Primary = .{ .group = expr } });
+        }
 
         unreachable;
     }
@@ -139,13 +138,36 @@ pub const Parser = struct {
 test "does nothing" {
     const tokens = &.{
         Token.new(1, .FALSE, "false", null),
+        Token.new(2, .NUMBER, "42.0", .{ .num = 42.0 }),
+        Token.new(3, .STRING, "hello", .{ .str = "hello" }),
+        Token.new(3, .LEFT_PAREN, "(", null),
+        Token.new(3, .STRING, "hello", .{ .str = "hello" }),
+        Token.new(3, .RIGHT_PAREN, ")", null),
+        Token.new(3, .LEFT_PAREN, "(", null),
+        Token.new(3, .NUMBER, "42.0", .{ .num = 42.0 }),
+        Token.new(3, .RIGHT_PAREN, ")", null),
+        Token.new(3, .LEFT_PAREN, "(", null),
+        Token.new(3, .NIL, "nil", null),
+        Token.new(3, .RIGHT_PAREN, ")", null),
     };
 
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
     var parser = Parser.init(arena.allocator(), tokens);
-    const expression = try parser.parse();
+    var expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
+    expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
+    expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
 
-    std.debug.print("{}\n", .{expression});
+    expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
+
+    expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
+
+    expr = try parser.parse();
+    std.debug.print("{}\n", .{expr});
 }

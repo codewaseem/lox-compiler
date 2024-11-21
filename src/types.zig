@@ -51,10 +51,10 @@ pub const TokenType = enum {
     EOF,
 };
 
-pub const StringNumberLiteral = union(enum) {
+pub const Literal = union(enum) {
     str: []const u8,
     num: f64,
-    pub fn format(value: StringNumberLiteral, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(value: Literal, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .str => |str| try std.fmt.format(writer, "{s}", .{str}),
             .num => |num| {
@@ -73,11 +73,11 @@ pub const Token = struct {
     type: TokenType = undefined,
     lexeme: []const u8 = undefined,
     line: usize,
-    literal: ?StringNumberLiteral,
+    literal: ?Literal,
 
     const self = @This();
 
-    pub fn new(line: usize, token_type: TokenType, lexeme: []const u8, literal: ?StringNumberLiteral) Token {
+    pub fn new(line: usize, token_type: TokenType, lexeme: []const u8, literal: ?Literal) Token {
         return .{
             .type = token_type,
             .lexeme = lexeme,

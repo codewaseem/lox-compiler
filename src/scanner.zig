@@ -1,7 +1,7 @@
 const std = @import("std");
 const Types = @import("./types.zig");
 
-const Literal = Types.StringNumberLiteral;
+const Literal = Types.Literal;
 const Token = Types.Token;
 const TokenType = Types.TokenType;
 
