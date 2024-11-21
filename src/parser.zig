@@ -8,6 +8,7 @@ const TokenType = Types.TokenType;
 const PrimaryExpr = union(enum) {
     BOOL: bool,
     NIL: void,
+    STRING_OR_NUMBER: StringNumberLiteral,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
@@ -16,6 +17,9 @@ const PrimaryExpr = union(enum) {
             },
             .NIL => {
                 try std.fmt.format(writer, "{s}", .{"nil"});
+            },
+            .STRING_OR_NUMBER => {
+                try std.fmt.format(writer, "{}", .{this.STRING_OR_NUMBER});
             },
         }
     }
@@ -102,6 +106,12 @@ pub const Parser = struct {
         if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .BOOL = false } });
         if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .BOOL = true } });
         if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .NIL = {} } });
+
+        if (self.match(.{.NUMBER})) return self.newExpr(
+            .{
+                .Primary = .{ .STRING_OR_NUMBER = self.previous().literal.? },
+            },
+        );
 
         unreachable;
     }
