@@ -253,7 +253,7 @@ pub const Parser = struct {
         );
 
         if (self.match(.{.LEFT_PAREN})) {
-            const expr = try self.factor();
+            const expr = try self.expression();
             _ = self.consume(.RIGHT_PAREN);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
@@ -262,7 +262,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Self) !*Expr {
-        return self.factor();
+        return self.expression();
     }
 };
 
