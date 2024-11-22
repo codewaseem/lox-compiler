@@ -86,9 +86,39 @@ const Expr = union(enum) {
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     tokens: []const Token,
+    errors: std.ArrayList(ParseError),
     current: usize = 0,
 
-    const ParserError = error{OutOfMemory};
+    const ParseError = error{ OutOfMemory, ExpectedRightParen };
+    const ParserError = struct {
+        type: ParseError,
+        line: usize,
+        token: Token,
+        message: []const u8,
+
+        pub fn new(error_type: ParseError, line: usize, message: []const u8) ParseError {
+            return .{
+                .type = error_type,
+                .line = line,
+                .message = message,
+            };
+        }
+
+        pub fn format(value: ParserError, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+            switch (value.type) {
+                ParseError.ExpectedRightParen => {
+                    try std.fmt.format(
+                        writer,
+                        "[line {d}] Error: at '{}': {s}\n",
+                        .{ value.token.line, value.token.lexeme, value.message },
+                    );
+                },
+                ParseError.OutOfMemory => {
+                    try std.fmt.format(writer, "Error: OutOfMemory\n", .{});
+                },
+            }
+        }
+    };
 
     const Self = @This();
 
@@ -96,6 +126,7 @@ pub const Parser = struct {
         return Parser{
             .allocator = allocator,
             .tokens = tokens,
+            .errors = std.ArrayList(ParseError).init(allocator),
             .current = 0,
         };
     }
@@ -122,7 +153,7 @@ pub const Parser = struct {
         return self.peek().type == token_type;
     }
 
-    fn newExpr(self: *Self, value: anytype) ParserError!*Expr {
+    fn newExpr(self: *Self, value: anytype) ParseError!*Expr {
         const expr = try self.allocator.create(Expr);
         errdefer self.allocator.destroy(expr);
         expr.* = value;
@@ -139,17 +170,26 @@ pub const Parser = struct {
         } else false;
     }
 
-    fn consume(self: *Self, token_type: TokenType) Token {
+    fn consume(self: *Self, token_type: TokenType, error_type: ParseError) Token {
         if (self.check(token_type)) return self.advance();
 
-        @panic("handle error");
+        const error_token = self.peek();
+        switch (error_type) {
+            .ExpectedRightParen => {
+                _ = error_token;
+                self.errors.append();
+            },
+            else => {
+                @panic("Unhandled error case\n");
+            },
+        }
     }
 
-    fn expression(self: *Self) ParserError!*Expr {
+    fn expression(self: *Self) ParseError!*Expr {
         return self.equality();
     }
 
-    fn equality(self: *Self) ParserError!*Expr {
+    fn equality(self: *Self) ParseError!*Expr {
         var expr = try self.comparision();
 
         while (self.match(.{
@@ -170,7 +210,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn comparision(self: *Self) ParserError!*Expr {
+    fn comparision(self: *Self) ParseError!*Expr {
         var expr = try self.term();
 
         while (self.match(.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
@@ -186,7 +226,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn term(self: *Self) ParserError!*Expr {
+    fn term(self: *Self) ParseError!*Expr {
         var expr = try self.factor();
 
         while (self.match(.{
@@ -205,7 +245,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn factor(self: *Self) ParserError!*Expr {
+    fn factor(self: *Self) ParseError!*Expr {
         // std.debug.print("factor {}\n", .{self.peek()});
         var expr = try self.unary();
 
@@ -225,7 +265,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn unary(self: *Self) ParserError!*Expr {
+    fn unary(self: *Self) ParseError!*Expr {
         // std.debug.print("unary {}\n", .{self.peek()});
 
         if (self.match(.{ .BANG, .MINUS })) {
@@ -240,7 +280,7 @@ pub const Parser = struct {
         return try self.primary();
     }
 
-    fn primary(self: *Self) ParserError!*Expr {
+    fn primary(self: *Self) ParseError!*Expr {
         // std.debug.print("primary {}\n", .{self.peek()});
         if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .bool = false } });
         if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .bool = true } });
