@@ -86,21 +86,21 @@ const Expr = union(enum) {
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     tokens: []const Token,
-    errors: std.ArrayList(ParseError),
+    errors: std.ArrayList(ParserError),
     current: usize = 0,
 
-    const ParseError = error{ OutOfMemory, ExpectedRightParen };
+    const ParseError = error{ OutOfMemory, ExpectedRightParen, ExpectedExpression };
     const ParserError = struct {
         type: ParseError,
-        line: usize,
         token: Token,
-        message: []const u8,
 
-        pub fn new(error_type: ParseError, line: usize, message: []const u8) ParseError {
+        pub fn new(
+            error_type: ParseError,
+            token: Token,
+        ) ParserError {
             return .{
                 .type = error_type,
-                .line = line,
-                .message = message,
+                .token = token,
             };
         }
 
@@ -109,8 +109,18 @@ pub const Parser = struct {
                 ParseError.ExpectedRightParen => {
                     try std.fmt.format(
                         writer,
-                        "[line {d}] Error: at '{}': {s}\n",
-                        .{ value.token.line, value.token.lexeme, value.message },
+                        "[line {d}] Error: at '{s}': Expected ')' after expression.\n",
+                        .{ value.token.line, value.token.lexeme },
+                    );
+                },
+                ParseError.ExpectedExpression => {
+                    try std.fmt.format(
+                        writer,
+                        "[line {d}] Error: at '{s}': Expected expression.\n",
+                        .{
+                            value.token.line,
+                            value.token.lexeme,
+                        },
                     );
                 },
                 ParseError.OutOfMemory => {
@@ -126,7 +136,7 @@ pub const Parser = struct {
         return Parser{
             .allocator = allocator,
             .tokens = tokens,
-            .errors = std.ArrayList(ParseError).init(allocator),
+            .errors = std.ArrayList(ParserError).init(allocator),
             .current = 0,
         };
     }
@@ -175,14 +185,19 @@ pub const Parser = struct {
 
         const error_token = self.peek();
         switch (error_type) {
-            .ExpectedRightParen => {
-                _ = error_token;
-                self.errors.append();
+            ParseError.ExpectedRightParen => {
+                self.errors.append(ParserError.new(
+                    ParseError.ExpectedRightParen,
+                    error_token,
+                )) catch |err| {
+                    std.debug.print("Unexpected Error: {}\n", .{err});
+                };
             },
             else => {
                 @panic("Unhandled error case\n");
             },
         }
+        return error_token;
     }
 
     fn expression(self: *Self) ParseError!*Expr {
@@ -286,23 +301,29 @@ pub const Parser = struct {
         if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .bool = true } });
         if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .nil = {} } });
 
-        if (self.match(.{ .NUMBER, .STRING })) return self.newExpr(
-            .{
-                .Primary = .{ .literal = self.previous().literal.? },
-            },
-        );
+        if (self.match(.{ .NUMBER, .STRING })) {
+            return self.newExpr(
+                .{
+                    .Primary = .{ .literal = self.previous().literal.? },
+                },
+            );
+        }
 
         if (self.match(.{.LEFT_PAREN})) {
             const expr = try self.expression();
-            _ = self.consume(.RIGHT_PAREN);
+            _ = self.consume(.RIGHT_PAREN, ParseError.ExpectedRightParen);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
 
-        unreachable;
+        try self.errors.append(ParserError.new(ParseError.ExpectedExpression, self.peek()));
+        return ParseError.ExpectedExpression;
     }
 
-    pub fn parse(self: *Self) !*Expr {
-        return self.expression();
+    pub fn parse(self: *Self) !?*Expr {
+        return self.expression() catch |err| {
+            err catch {};
+            return null;
+        };
     }
 };
 
