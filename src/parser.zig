@@ -206,11 +206,12 @@ pub const Parser = struct {
     }
 
     fn factor(self: *Self) ParserError!*Expr {
+        // std.debug.print("factor {}\n", .{self.peek()});
         var expr = try self.unary();
 
         while (self.match(.{
-            .MINUS,
-            .PLUS,
+            .SLASH,
+            .STAR,
         })) {
             const op = self.previous();
             const right = try self.unary();
@@ -225,6 +226,8 @@ pub const Parser = struct {
     }
 
     fn unary(self: *Self) ParserError!*Expr {
+        // std.debug.print("unary {}\n", .{self.peek()});
+
         if (self.match(.{ .BANG, .MINUS })) {
             const op = self.previous();
             const expr = try self.unary();
@@ -238,6 +241,7 @@ pub const Parser = struct {
     }
 
     fn primary(self: *Self) ParserError!*Expr {
+        // std.debug.print("primary {}\n", .{self.peek()});
         if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .bool = false } });
         if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .bool = true } });
         if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .nil = {} } });
@@ -249,7 +253,7 @@ pub const Parser = struct {
         );
 
         if (self.match(.{.LEFT_PAREN})) {
-            const expr = try self.unary();
+            const expr = try self.factor();
             _ = self.consume(.RIGHT_PAREN);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
@@ -258,7 +262,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Self) !*Expr {
-        return self.unary();
+        return self.factor();
     }
 };
 

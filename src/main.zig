@@ -24,6 +24,8 @@ pub fn main() !void {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
+    // std.debug.print("{s}\n\n", .{file_contents});
+
     var scanner = try Scanner.new(file_contents, std.heap.page_allocator);
     defer scanner.deinit();
 
