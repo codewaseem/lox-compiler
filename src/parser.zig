@@ -1,83 +1,114 @@
 const std = @import("std");
-const Types = @import("types.zig");
+const Scanner = @import("./scanner.zig").Scanner;
+const types = @import("types.zig");
 
-const Token = Types.Token;
-const Literal = Types.Literal;
-const TokenType = Types.TokenType;
+const TokenType = types.TokenType;
+const Token = types.Token;
+const LiteralToken = types.Literal;
 
-const Expr = union(enum) {
-    pub const PrimaryExpr = union(enum) {
-        bool: bool,
-        nil: void,
-        literal: Literal,
+pub const BinaryExpression = struct {
+    left: *Expr,
+    right: *Expr,
+    operator: Token,
+};
 
-        pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            switch (this) {
-                .bool => {
-                    try std.fmt.format(writer, "{}", .{this.bool});
-                },
-                .nil => {
-                    try std.fmt.format(writer, "{s}", .{"nil"});
-                },
-                .literal => {
-                    try std.fmt.format(writer, "{}", .{this.literal});
-                },
-            }
-        }
-    };
+pub const UnaryExpression = struct {
+    right: *Expr,
+    operator: Token,
+};
 
-    const BinaryExpr = struct {
-        left: *Expr,
-        right: *Expr,
-        operator: Token,
+pub const GroupingExpression = struct {
+    expression: *Expr,
+};
 
-        pub fn format(value: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            try std.fmt.format(writer, "({s} {} {})", .{
-                value.operator.lexeme,
-                value.left,
-                value.right,
-            });
-        }
-    };
+pub const LiteralExpression = union(enum) {
+    bool: bool,
+    nil: void,
+    literal: LiteralToken,
+};
 
-    const UnaryExpr = struct {
-        right: *Expr,
-        operator: Token,
-
-        pub fn format(value: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            try std.fmt.format(writer, "({s} {})", .{
-                value.operator.lexeme,
-                value.right,
-            });
-        }
-    };
-
-    const GroupingExpr = struct {
-        expression: *Expr,
-
-        pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            try std.fmt.format(writer, "(group {})", .{this.expression});
-        }
-    };
-
-    Primary: PrimaryExpr,
-    Binary: BinaryExpr,
-    Unary: UnaryExpr,
-    Group: GroupingExpr,
+pub const Expr = union(enum) {
+    Binary: BinaryExpression,
+    Unary: UnaryExpression,
+    Group: GroupingExpression,
+    Literal: LiteralExpression,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
-            .Primary => {
-                try std.fmt.format(writer, "{}", .{this.Primary});
+            .Literal => |value| {
+                switch (value) {
+                    .bool => {
+                        try std.fmt.format(writer, "{}", .{value.bool});
+                    },
+                    .nil => {
+                        try std.fmt.format(writer, "{s}", .{"nil"});
+                    },
+                    .literal => {
+                        try std.fmt.format(writer, "{}", .{value.literal});
+                    },
+                }
             },
-            .Binary => {
-                try std.fmt.format(writer, "{}", .{this.Binary});
+            .Binary => |binary| {
+                try std.fmt.format(writer, "({s} {} {})", .{
+                    binary.operator.lexeme,
+                    binary.left,
+                    binary.right,
+                });
             },
-            .Unary => {
-                try std.fmt.format(writer, "{}", .{this.Unary});
+            .Unary => |unary| {
+                try std.fmt.format(writer, "({s} {})", .{
+                    unary.operator.lexeme,
+                    unary.right,
+                });
             },
-            .Group => {
-                try std.fmt.format(writer, "{}", .{this.Group});
+            .Group => |group| {
+                try std.fmt.format(writer, "(group {})", .{group.expression});
+            },
+        }
+    }
+};
+
+const Error = error{
+    OutOfMemory,
+    ExpectedExpression,
+    ExpectedRightParen,
+};
+
+const ParserError = struct {
+    token: Token,
+    error_type: Error,
+
+    pub fn new(
+        error_type: Error,
+        token: Token,
+    ) ParserError {
+        return .{
+            .error_type = error_type,
+            .token = token,
+        };
+    }
+
+    pub fn format(value: ParserError, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (value.error_type) {
+            Error.ExpectedRightParen => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error: at '{s}': Expected ')' after expression.\n",
+                    .{ value.token.line, value.token.lexeme },
+                );
+            },
+            Error.ExpectedExpression => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error: at '{s}': Expected expression.\n",
+                    .{
+                        value.token.line,
+                        value.token.lexeme,
+                    },
+                );
+            },
+            Error.OutOfMemory => {
+                try std.fmt.format(writer, "Error: OutOfMemory\n", .{});
             },
         }
     }
@@ -86,54 +117,13 @@ const Expr = union(enum) {
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     tokens: []const Token,
-    errors: std.ArrayList(ParserError),
     current: usize = 0,
-
-    const ParseError = error{ OutOfMemory, ExpectedRightParen, ExpectedExpression };
-    const ParserError = struct {
-        type: ParseError,
-        token: Token,
-
-        pub fn new(
-            error_type: ParseError,
-            token: Token,
-        ) ParserError {
-            return .{
-                .type = error_type,
-                .token = token,
-            };
-        }
-
-        pub fn format(value: ParserError, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            switch (value.type) {
-                ParseError.ExpectedRightParen => {
-                    try std.fmt.format(
-                        writer,
-                        "[line {d}] Error: at '{s}': Expected ')' after expression.\n",
-                        .{ value.token.line, value.token.lexeme },
-                    );
-                },
-                ParseError.ExpectedExpression => {
-                    try std.fmt.format(
-                        writer,
-                        "[line {d}] Error: at '{s}': Expected expression.\n",
-                        .{
-                            value.token.line,
-                            value.token.lexeme,
-                        },
-                    );
-                },
-                ParseError.OutOfMemory => {
-                    try std.fmt.format(writer, "Error: OutOfMemory\n", .{});
-                },
-            }
-        }
-    };
+    errors: std.ArrayList(ParserError),
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, tokens: []const Token) Parser {
-        return Parser{
+        return .{
             .allocator = allocator,
             .tokens = tokens,
             .errors = std.ArrayList(ParserError).init(allocator),
@@ -163,7 +153,7 @@ pub const Parser = struct {
         return self.peek().type == token_type;
     }
 
-    fn newExpr(self: *Self, value: anytype) ParseError!*Expr {
+    fn newExpr(self: *Self, value: anytype) Error!*Expr {
         const expr = try self.allocator.create(Expr);
         errdefer self.allocator.destroy(expr);
         expr.* = value;
@@ -180,14 +170,14 @@ pub const Parser = struct {
         } else false;
     }
 
-    fn consume(self: *Self, token_type: TokenType, error_type: ParseError) Token {
+    fn consume(self: *Self, token_type: TokenType, error_type: Error) Token {
         if (self.check(token_type)) return self.advance();
 
         const error_token = self.peek();
         switch (error_type) {
-            ParseError.ExpectedRightParen => {
+            Error.ExpectedRightParen => {
                 self.errors.append(ParserError.new(
-                    ParseError.ExpectedRightParen,
+                    Error.ExpectedRightParen,
                     error_token,
                 )) catch |err| {
                     std.debug.print("Unexpected Error: {}\n", .{err});
@@ -200,11 +190,11 @@ pub const Parser = struct {
         return error_token;
     }
 
-    fn expression(self: *Self) ParseError!*Expr {
+    fn expression(self: *Self) Error!*Expr {
         return self.equality();
     }
 
-    fn equality(self: *Self) ParseError!*Expr {
+    fn equality(self: *Self) Error!*Expr {
         var expr = try self.comparision();
 
         while (self.match(.{
@@ -225,7 +215,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn comparision(self: *Self) ParseError!*Expr {
+    fn comparision(self: *Self) Error!*Expr {
         var expr = try self.term();
 
         while (self.match(.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
@@ -241,7 +231,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn term(self: *Self) ParseError!*Expr {
+    fn term(self: *Self) Error!*Expr {
         var expr = try self.factor();
 
         while (self.match(.{
@@ -260,7 +250,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn factor(self: *Self) ParseError!*Expr {
+    fn factor(self: *Self) Error!*Expr {
         // std.debug.print("factor {}\n", .{self.peek()});
         var expr = try self.unary();
 
@@ -280,7 +270,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn unary(self: *Self) ParseError!*Expr {
+    fn unary(self: *Self) Error!*Expr {
         // std.debug.print("unary {}\n", .{self.peek()});
 
         if (self.match(.{ .BANG, .MINUS })) {
@@ -295,68 +285,37 @@ pub const Parser = struct {
         return try self.primary();
     }
 
-    fn primary(self: *Self) ParseError!*Expr {
+    fn primary(self: *Self) Error!*Expr {
         // std.debug.print("primary {}\n", .{self.peek()});
-        if (self.match(.{.FALSE})) return self.newExpr(.{ .Primary = .{ .bool = false } });
-        if (self.match(.{.TRUE})) return self.newExpr(.{ .Primary = .{ .bool = true } });
-        if (self.match(.{.NIL})) return self.newExpr(.{ .Primary = .{ .nil = {} } });
+        if (self.match(.{.FALSE})) return self.newExpr(.{ .Literal = .{ .bool = false } });
+        if (self.match(.{.TRUE})) return self.newExpr(.{ .Literal = .{ .bool = true } });
+        if (self.match(.{.NIL})) return self.newExpr(.{ .Literal = .{ .nil = {} } });
 
         if (self.match(.{ .NUMBER, .STRING })) {
             return self.newExpr(
                 .{
-                    .Primary = .{ .literal = self.previous().literal.? },
+                    .Literal = .{ .literal = self.previous().literal.? },
                 },
             );
         }
 
         if (self.match(.{.LEFT_PAREN})) {
             const expr = try self.expression();
-            _ = self.consume(.RIGHT_PAREN, ParseError.ExpectedRightParen);
+            _ = self.consume(.RIGHT_PAREN, Error.ExpectedRightParen);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
 
-        try self.errors.append(ParserError.new(ParseError.ExpectedExpression, self.peek()));
-        return ParseError.ExpectedExpression;
+        try self.errors.append(ParserError.new(Error.ExpectedExpression, self.peek()));
+        return Error.ExpectedExpression;
     }
 
     pub fn parse(self: *Self) !?*Expr {
         return self.expression() catch |err| {
-            err catch {};
-            return null;
+            switch (err) {
+                Error.ExpectedExpression => return null,
+                Error.ExpectedRightParen => return null,
+                else => return err,
+            }
         };
     }
 };
-
-test "does nothing" {
-    const tokens = &.{
-        Token.new(1, .FALSE, "false", null),
-        Token.new(2, .NUMBER, "42.0", .{ .num = 42.0 }),
-        Token.new(3, .STRING, "hello", .{ .str = "hello" }),
-        Token.new(3, .LEFT_PAREN, "(", null),
-        Token.new(3, .STRING, "hello", .{ .str = "hello" }),
-        Token.new(3, .RIGHT_PAREN, ")", null),
-        Token.new(3, .LEFT_PAREN, "(", null),
-        Token.new(3, .NUMBER, "42.0", .{ .num = 42.0 }),
-        Token.new(3, .RIGHT_PAREN, ")", null),
-        Token.new(3, .LEFT_PAREN, "(", null),
-        Token.new(3, .NIL, "nil", null),
-        Token.new(3, .RIGHT_PAREN, ")", null),
-    };
-
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var parser = Parser.init(arena.allocator(), tokens);
-    var expr = try parser.parse();
-    std.debug.print("{}\n", .{expr});
-    expr = try parser.parse();
-    std.debug.print("{}\n", .{expr});
-    expr = try parser.parse();
-    std.debug.print("{}\n", .{expr});
-
-    expr = try parser.parse();
-    std.debug.print("{}\n", .{expr});
-
-    expr = try parser.parse();
-    std.debug.print("{}\n", .{expr});
-}

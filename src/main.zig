@@ -32,12 +32,6 @@ pub fn main() !void {
     const tokens = try scanner.scanTokens();
     const scanner_errors = try scanner.getErrors();
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    var parser = Parser.init(arena.allocator(), tokens);
-    const expressions = try parser.parse();
-
     for (scanner_errors) |scan_error| {
         std.debug.print("{s}", .{scan_error});
     }
@@ -49,14 +43,18 @@ pub fn main() !void {
             try stdout.print("{s}", .{token});
         }
     } else if (std.mem.eql(u8, command, "parse")) {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+
+        var parser = Parser.init(arena.allocator(), tokens);
+        const expressions = try parser.parse();
+
         for (parser.errors.items) |err| {
             std.debug.print("{}", .{err});
         }
 
-        if (scanner_errors.len == 0) {
-            if (expressions) |expr| {
-                try stdout.print("{}", .{expr});
-            }
+        if (expressions) |expr| {
+            try stdout.print("{}\n", .{expr});
         }
 
         if (parser.errors.items.len > 0) {
