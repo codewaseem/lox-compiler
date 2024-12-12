@@ -94,3 +94,73 @@ pub const Token = struct {
         );
     }
 };
+
+pub const BinaryExpression = struct {
+    left: *Expr,
+    right: *Expr,
+    operator: Token,
+};
+
+pub const UnaryExpression = struct {
+    right: *Expr,
+    operator: Token,
+};
+
+pub const GroupingExpression = struct {
+    expression: *Expr,
+};
+
+pub const LiteralExpression = union(enum) {
+    bool: bool,
+    nil: void,
+    literal: Literal,
+
+    pub fn format(this: LiteralExpression, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (this) {
+            .bool => |value| try std.fmt.format(writer, "{}", .{value}),
+            .nil => try std.fmt.format(writer, "{s}", .{"nil"}),
+            .literal => |value| try std.fmt.format(writer, "{}", .{value}),
+        }
+    }
+};
+
+pub const Expr = union(enum) {
+    Binary: BinaryExpression,
+    Unary: UnaryExpression,
+    Group: GroupingExpression,
+    Literal: LiteralExpression,
+
+    pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (this) {
+            .Literal => |value| {
+                switch (value) {
+                    .bool => {
+                        try std.fmt.format(writer, "{}", .{value.bool});
+                    },
+                    .nil => {
+                        try std.fmt.format(writer, "{s}", .{"nil"});
+                    },
+                    .literal => {
+                        try std.fmt.format(writer, "{}", .{value.literal});
+                    },
+                }
+            },
+            .Binary => |binary| {
+                try std.fmt.format(writer, "({s} {} {})", .{
+                    binary.operator.lexeme,
+                    binary.left,
+                    binary.right,
+                });
+            },
+            .Unary => |unary| {
+                try std.fmt.format(writer, "({s} {})", .{
+                    unary.operator.lexeme,
+                    unary.right,
+                });
+            },
+            .Group => |group| {
+                try std.fmt.format(writer, "(group {})", .{group.expression});
+            },
+        }
+    }
+};
