@@ -5,6 +5,7 @@ const LiteralExpression = types.LiteralExpression;
 const Literal = types.Literal;
 const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
+const BinaryExpression = types.BinaryExpression;
 
 const Value = union(enum) {
     literal: LiteralExpression,
@@ -74,6 +75,24 @@ pub const Interpreter = struct {
         }
     }
 
+    fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) Value {
+        const left = self.evaluate(expression.left);
+        const right = self.evaluate(expression.right);
+
+        switch (expression.operator.type) {
+            .MINUS => {
+                return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num - right.literal.literal.num } } };
+            },
+            .SLASH => {
+                return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num / right.literal.literal.num } } };
+            },
+            .STAR => {
+                return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num * right.literal.literal.num } } };
+            },
+            else => unreachable,
+        }
+    }
+
     fn isTruthy(_: *Self, value: Value) bool {
         return switch (value) {
             .literal => |literal| {
@@ -91,7 +110,7 @@ pub const Interpreter = struct {
             .Literal => |*literal| return self.evaluateLiteral(literal),
             .Group => |*grouping| return self.evaluateGrouping(grouping),
             .Unary => |*unary| return self.evaluateUnaryExpression(unary),
-            else => unreachable,
+            .Binary => |*binary| return self.evaluateBinaryExpression(binary),
         }
     }
 };
