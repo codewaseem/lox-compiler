@@ -133,17 +133,7 @@ pub const Expr = union(enum) {
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
             .Literal => |value| {
-                switch (value) {
-                    .bool => {
-                        try std.fmt.format(writer, "{}", .{value.bool});
-                    },
-                    .nil => {
-                        try std.fmt.format(writer, "{s}", .{"nil"});
-                    },
-                    .literal => {
-                        try std.fmt.format(writer, "{}", .{value.literal});
-                    },
-                }
+                try std.fmt.format(writer, "{}", .{value});
             },
             .Binary => |binary| {
                 try std.fmt.format(writer, "({s} {} {})", .{

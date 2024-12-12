@@ -11,7 +11,28 @@ const Value = union(enum) {
 
     pub fn format(this: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
-            .literal => |value| try std.fmt.format(writer, "{}", .{value}),
+            .literal => |value| {
+                switch (value) {
+                    .literal => |literal| {
+                        switch (literal) {
+                            .str => |str| try std.fmt.format(writer, "{s}", .{str}),
+                            .num => {
+                                var buf: [256]u8 = undefined;
+                                const str = try std.fmt.bufPrint(&buf, "{d}", .{literal});
+                                // if the number ends with .0, remove the .0
+                                if (std.mem.endsWith(u8, str, ".0")) {
+                                    try writer.writeAll(str[0 .. str.len - 2]);
+                                } else {
+                                    try writer.writeAll(str);
+                                }
+                            },
+                        }
+                    },
+                    else => {
+                        try std.fmt.format(writer, "{}", .{value});
+                    },
+                }
+            },
         }
     }
 };
