@@ -7,6 +7,8 @@ const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
 const BinaryExpression = types.BinaryExpression;
 
+const InterpreterError = error{ OutOfMemory, NoSpaceLeft };
+
 const Value = union(enum) {
     literal: LiteralExpression,
 
@@ -49,7 +51,7 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, expression: *Expr) Value {
+    pub fn interpret(self: *Self, expression: *Expr) InterpreterError!Value {
         return self.evaluate(expression);
     }
 
@@ -57,12 +59,12 @@ pub const Interpreter = struct {
         return .{ .literal = expression.* };
     }
 
-    fn evaluateGrouping(self: *Self, expression: *GroupingExpression) Value {
+    fn evaluateGrouping(self: *Self, expression: *GroupingExpression) InterpreterError!Value {
         return self.evaluate(expression.expression);
     }
 
-    fn evaluateUnaryExpression(self: *Self, expression: *UnaryExpression) Value {
-        const right = self.evaluate(expression.right);
+    fn evaluateUnaryExpression(self: *Self, expression: *UnaryExpression) InterpreterError!Value {
+        const right = try self.evaluate(expression.right);
 
         switch (expression.operator.type) {
             .MINUS => {
@@ -75,9 +77,9 @@ pub const Interpreter = struct {
         }
     }
 
-    fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) Value {
-        const left = self.evaluate(expression.left);
-        const right = self.evaluate(expression.right);
+    fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) InterpreterError!Value {
+        const left = try self.evaluate(expression.left);
+        const right = try self.evaluate(expression.right);
 
         switch (expression.operator.type) {
             .MINUS => {
@@ -93,7 +95,12 @@ pub const Interpreter = struct {
                 switch (left.literal.literal) {
                     .str => |left_str| {
                         switch (right.literal.literal) {
-                            .str => |right_str| return .{ .literal = .{ .literal = .{ .str = left_str ++ right_str } } },
+                            .str => |right_str| {
+                                const len = left_str.len + right_str.len + 1;
+                                const buf = try self.allocator.alloc(u8, len);
+                                const str = try std.fmt.bufPrint(buf, "{s}{s}", .{ left_str, right_str });
+                                return .{ .literal = .{ .literal = .{ .str = str } } };
+                            },
                             else => unreachable,
                         }
                     },
@@ -118,7 +125,7 @@ pub const Interpreter = struct {
         };
     }
 
-    fn evaluate(self: *Self, expression: *Expr) Value {
+    fn evaluate(self: *Self, expression: *Expr) InterpreterError!Value {
         switch (expression.*) {
             .Literal => |*literal| return self.evaluateLiteral(literal),
             .Group => |*grouping| return self.evaluateGrouping(grouping),
