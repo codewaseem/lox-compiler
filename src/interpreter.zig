@@ -48,18 +48,22 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, expression: *Expr) !Value {
+    pub fn interpret(self: *Self, expression: *Expr) Value {
         return self.evaluate(expression);
     }
 
-    // lets first evaluate true, false, and nil
-    fn evaluateLiteral(_: *Self, expression: *LiteralExpression) !Value {
+    fn evaluateLiteral(_: *Self, expression: *LiteralExpression) Value {
         return .{ .literal = expression.* };
     }
 
-    fn evaluate(self: *Self, expression: *Expr) !Value {
+    fn evaluateGrouping(self: *Self, expression: *GroupingExpression) Value {
+        return self.evaluate(expression.expression);
+    }
+
+    fn evaluate(self: *Self, expression: *Expr) Value {
         switch (expression.*) {
-            .Literal => |*literal| return try self.evaluateLiteral(literal),
+            .Literal => |*literal| return self.evaluateLiteral(literal),
+            .Group => |*grouping| return self.evaluateGrouping(grouping),
             else => unreachable,
         }
     }

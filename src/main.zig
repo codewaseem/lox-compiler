@@ -77,7 +77,7 @@ pub fn main() !void {
         // Output evaluated result if requested
         if (std.mem.eql(u8, command, "evaluate")) {
             var interpreter = Interpreter.init(std.heap.page_allocator);
-            const result = try interpreter.interpret(expr);
+            const result = interpreter.interpret(expr);
 
             try stdout.print("{}\n", .{result});
         }
