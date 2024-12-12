@@ -89,6 +89,9 @@ pub const Interpreter = struct {
             .STAR => {
                 return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num * right.literal.literal.num } } };
             },
+            .PLUS => {
+                return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num + right.literal.literal.num } } };
+            },
             else => unreachable,
         }
     }
