@@ -90,7 +90,17 @@ pub const Interpreter = struct {
                 return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num * right.literal.literal.num } } };
             },
             .PLUS => {
-                return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num + right.literal.literal.num } } };
+                switch (left.literal.literal) {
+                    .str => |left_str| {
+                        switch (right.literal.literal) {
+                            .str => |right_str| return .{ .literal = .{ .literal = .{ .str = left_str ++ right_str } } },
+                            else => unreachable,
+                        }
+                    },
+                    .num => {
+                        return .{ .literal = .{ .literal = .{ .num = left.literal.literal.num + right.literal.literal.num } } };
+                    },
+                }
             },
             else => unreachable,
         }
