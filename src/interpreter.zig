@@ -60,10 +60,37 @@ pub const Interpreter = struct {
         return self.evaluate(expression.expression);
     }
 
+    fn evaluateUnaryExpression(self: *Self, expression: *UnaryExpression) Value {
+        const right = self.evaluate(expression.right);
+
+        switch (expression.operator.type) {
+            .MINUS => {
+                return .{ .literal = .{ .literal = .{ .num = -right.literal.literal.num } } };
+            },
+            .BANG => {
+                return .{ .literal = .{ .bool = !self.isTruthy(right) } };
+            },
+            else => unreachable,
+        }
+    }
+
+    fn isTruthy(_: *Self, value: Value) bool {
+        return switch (value) {
+            .literal => |literal| {
+                switch (literal) {
+                    .bool => |v| return v,
+                    .nil => return false,
+                    else => return true,
+                }
+            },
+        };
+    }
+
     fn evaluate(self: *Self, expression: *Expr) Value {
         switch (expression.*) {
             .Literal => |*literal| return self.evaluateLiteral(literal),
             .Group => |*grouping| return self.evaluateGrouping(grouping),
+            .Unary => |*unary| return self.evaluateUnaryExpression(unary),
             else => unreachable,
         }
     }
