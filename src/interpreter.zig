@@ -7,7 +7,31 @@ const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
 const BinaryExpression = types.BinaryExpression;
 
-const InterpreterError = error{ OutOfMemory, NoSpaceLeft };
+pub const InterpreterErrorSet = error{
+    OutOfMemory,
+    NoSpaceLeft,
+    OperandMustBeNumber,
+};
+
+pub const InterpreterError = struct {
+    error_type: InterpreterErrorSet,
+    line: usize,
+
+    pub fn new(error_type: InterpreterErrorSet, line: usize) InterpreterError {
+        return .{
+            .error_type = error_type,
+            .line = line,
+        };
+    }
+
+    pub fn format(self: InterpreterError, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (self.error_type) {
+            InterpreterErrorSet.OperandMustBeNumber => try std.fmt.format(writer, "{s}", .{"Operand must be a number.\n"}),
+            else => unreachable,
+        }
+        try std.fmt.format(writer, "[line {d}]\n", .{self.line});
+    }
+};
 
 const Value = union(enum) {
     bool: bool,
@@ -36,6 +60,7 @@ const Value = union(enum) {
 
 pub const Interpreter = struct {
     allocator: std.mem.Allocator,
+    runtime_error: ?InterpreterError = null,
 
     const Self = @This();
 
@@ -45,7 +70,7 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, expression: *Expr) InterpreterError!Value {
+    pub fn interpret(self: *Self, expression: *Expr) InterpreterErrorSet!Value {
         return self.evaluate(expression);
     }
 
@@ -62,18 +87,24 @@ pub const Interpreter = struct {
         };
     }
 
-    fn evaluateGrouping(self: *Self, expression: *GroupingExpression) InterpreterError!Value {
+    fn evaluateGrouping(self: *Self, expression: *GroupingExpression) InterpreterErrorSet!Value {
         return self.evaluate(expression.expression);
     }
 
-    fn evaluateUnaryExpression(self: *Self, expression: *UnaryExpression) InterpreterError!Value {
+    fn evaluateUnaryExpression(self: *Self, expression: *UnaryExpression) InterpreterErrorSet!Value {
         const right = try self.evaluate(expression.right);
 
         switch (expression.operator.type) {
             .MINUS => {
                 switch (right) {
                     .num => |num| return .{ .num = -num },
-                    else => unreachable,
+                    else => {
+                        self.runtime_error = InterpreterError.new(
+                            InterpreterErrorSet.OperandMustBeNumber,
+                            expression.operator.line,
+                        );
+                        return InterpreterErrorSet.OperandMustBeNumber;
+                    },
                 }
             },
             .BANG => {
@@ -83,7 +114,7 @@ pub const Interpreter = struct {
         }
     }
 
-    fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) InterpreterError!Value {
+    fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) InterpreterErrorSet!Value {
         const left = try self.evaluate(expression.left);
         const right = try self.evaluate(expression.right);
 
@@ -234,7 +265,7 @@ pub const Interpreter = struct {
         };
     }
 
-    fn evaluate(self: *Self, expression: *Expr) InterpreterError!Value {
+    fn evaluate(self: *Self, expression: *Expr) InterpreterErrorSet!Value {
         switch (expression.*) {
             .Literal => |*literal| return self.evaluateLiteral(literal),
             .Group => |*grouping| return self.evaluateGrouping(grouping),

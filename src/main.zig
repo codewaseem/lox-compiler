@@ -1,7 +1,10 @@
 const std = @import("std");
 const Scanner = @import("./scanner.zig").Scanner;
 const Parser = @import("./parser.zig").Parser;
-const Interpreter = @import("./interpreter.zig").Interpreter;
+const InterpreterModule = @import("./interpreter.zig");
+
+const Interpreter = InterpreterModule.Interpreter;
+const InterpreterErrorSet = InterpreterModule.InterpreterErrorSet;
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -52,9 +55,10 @@ pub fn main() !void {
 
     // Parsing phase
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const arena_allocator = arena.allocator();
     defer arena.deinit();
 
-    var parser = Parser.init(arena.allocator(), tokens);
+    var parser = Parser.init(arena_allocator, tokens);
     const expressions = try parser.parse();
 
     // Output parsed expression if requested
@@ -76,10 +80,18 @@ pub fn main() !void {
     if (expressions) |expr| {
         // Output evaluated result if requested
         if (std.mem.eql(u8, command, "evaluate")) {
-            var interpreter = Interpreter.init(std.heap.page_allocator);
-            const result = try interpreter.interpret(expr);
+            var interpreter = Interpreter.init(arena_allocator);
 
-            try stdout.print("{}\n", .{result});
+            if (interpreter.interpret(expr)) |result| {
+                try stdout.print("{}\n", .{result});
+            } else |err| {
+                if (err == InterpreterErrorSet.OperandMustBeNumber) {
+                    if (interpreter.runtime_error) |runtime_error| {
+                        std.debug.print("{}", .{runtime_error});
+                    }
+                }
+                std.process.exit(70);
+            }
         }
     }
 }
