@@ -4,7 +4,6 @@ const Parser = @import("./parser.zig").Parser;
 const InterpreterModule = @import("./interpreter.zig");
 
 const Interpreter = InterpreterModule.Interpreter;
-const InterpreterErrorSet = InterpreterModule.InterpreterErrorSet;
 
 pub fn main() !void {
     // You can use print statements as follows for debugging, they'll be visible when running tests.

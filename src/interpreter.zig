@@ -11,6 +11,7 @@ pub const InterpreterErrorSet = error{
     OutOfMemory,
     NoSpaceLeft,
     OperandMustBeNumber,
+    OperandsMustBeNumbers,
 };
 
 pub const InterpreterError = struct {
@@ -26,7 +27,12 @@ pub const InterpreterError = struct {
 
     pub fn format(self: InterpreterError, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (self.error_type) {
-            InterpreterErrorSet.OperandMustBeNumber => try std.fmt.format(writer, "{s}", .{"Operand must be a number.\n"}),
+            InterpreterErrorSet.OperandMustBeNumber => try std.fmt.format(writer, "{s}", .{
+                "Operand must be a number.\n",
+            }),
+            InterpreterErrorSet.OperandsMustBeNumbers => try std.fmt.format(writer, "{s}", .{
+                "Operands must be numbers.\n",
+            }),
             else => unreachable,
         }
         try std.fmt.format(writer, "[line {d}]\n", .{self.line});
@@ -114,6 +120,14 @@ pub const Interpreter = struct {
         }
     }
 
+    fn setBinaryExpressionError(self: *Self, expression: *BinaryExpression) InterpreterErrorSet {
+        self.runtime_error = InterpreterError.new(
+            InterpreterErrorSet.OperandsMustBeNumbers,
+            expression.operator.line,
+        );
+        return InterpreterErrorSet.OperandsMustBeNumbers;
+    }
+
     fn evaluateBinaryExpression(self: *Self, expression: *BinaryExpression) InterpreterErrorSet!Value {
         const left = try self.evaluate(expression.left);
         const right = try self.evaluate(expression.right);
@@ -124,10 +138,10 @@ pub const Interpreter = struct {
                     .num => |num| {
                         switch (right) {
                             .num => |right_num| return .{ .num = num - right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .SLASH => {
@@ -135,10 +149,10 @@ pub const Interpreter = struct {
                     .num => |num| {
                         switch (right) {
                             .num => |right_num| return .{ .num = num / right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .STAR => {
@@ -146,10 +160,10 @@ pub const Interpreter = struct {
                     .num => |num| {
                         switch (right) {
                             .num => |right_num| return .{ .num = num * right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .PLUS => {
@@ -179,10 +193,10 @@ pub const Interpreter = struct {
                     .num => |left_num| {
                         switch (right) {
                             .num => |right_num| return .{ .bool = left_num > right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .LESS => {
@@ -190,10 +204,10 @@ pub const Interpreter = struct {
                     .num => |left_num| {
                         switch (right) {
                             .num => |right_num| return .{ .bool = left_num < right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .GREATER_EQUAL => {
@@ -201,10 +215,10 @@ pub const Interpreter = struct {
                     .num => |left_num| {
                         switch (right) {
                             .num => |right_num| return .{ .bool = left_num >= right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .LESS_EQUAL => {
@@ -212,10 +226,10 @@ pub const Interpreter = struct {
                     .num => |left_num| {
                         switch (right) {
                             .num => |right_num| return .{ .bool = left_num <= right_num },
-                            else => unreachable,
+                            else => return self.setBinaryExpressionError(expression),
                         }
                     },
-                    else => unreachable,
+                    else => return self.setBinaryExpressionError(expression),
                 }
             },
             .BANG_EQUAL => {
