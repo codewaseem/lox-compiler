@@ -84,11 +84,9 @@ pub fn main() !void {
 
             if (interpreter.interpret(expr)) |result| {
                 try stdout.print("{}\n", .{result});
-            } else |err| {
-                if (err == InterpreterErrorSet.OperandMustBeNumber) {
-                    if (interpreter.runtime_error) |runtime_error| {
-                        std.debug.print("{}", .{runtime_error});
-                    }
+            } else |_| {
+                if (interpreter.runtime_error) |runtime_error| {
+                    std.debug.print("{}", .{runtime_error});
                 }
                 std.process.exit(70);
             }
