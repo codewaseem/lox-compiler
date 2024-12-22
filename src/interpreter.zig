@@ -114,7 +114,7 @@ pub const Interpreter = struct {
                 _ = try self.interpret(expression);
             },
             .Print => |expression| {
-                const value = try self.evaluate(expression);
+                const value = try self.interpret(expression);
                 try std.io.getStdOut().writer().print("{s}\n", .{value});
             },
         }

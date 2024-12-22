@@ -1,13 +1,2 @@
-print "Hello, World!";
-print 42;
-
-print "world" + "baz" + "bar";
-print 27 - 26;
-print "bar" == "quz";
-
-print "hello"; print true;
-print false;
-print "bar"; print 43;
-
-
-"bar" + 124;
+print "70" + "baar";
+print true * (52 + 48);
