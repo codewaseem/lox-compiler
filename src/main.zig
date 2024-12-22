@@ -89,5 +89,8 @@ pub fn main() !void {
             std.process.exit(65);
         };
         try interpreter.run(statements);
+        if (interpreter.runtime_error) {
+            std.process.exit(70);
+        }
     }
 }
