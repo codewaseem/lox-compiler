@@ -154,3 +154,19 @@ pub const Expr = union(enum) {
         }
     }
 };
+
+pub const Stmt = union(enum) {
+    Expression: *Expr,
+    Print: *Expr,
+
+    pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (this) {
+            .Expression => |value| {
+                try std.fmt.format(writer, "{}", .{value});
+            },
+            .Print => |value| {
+                try std.fmt.format(writer, "{}", .{value});
+            },
+        }
+    }
+};

@@ -9,11 +9,13 @@ const BinaryExpression = types.BinaryExpression;
 const UnaryExpression = types.UnaryExpression;
 const GroupingExpression = types.GroupingExpression;
 const LiteralExpression = types.LiteralExpression;
+const Stmt = types.Stmt;
 
 const Error = error{
     OutOfMemory,
     ExpectedExpression,
     ExpectedRightParen,
+    ExpectedSemicolon,
 };
 
 const ParserError = struct {
@@ -52,25 +54,36 @@ const ParserError = struct {
             Error.OutOfMemory => {
                 try std.fmt.format(writer, "Error: OutOfMemory\n", .{});
             },
+            Error.ExpectedSemicolon => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error: at '{s}': Expected ';' after expression.\n",
+                    .{
+                        value.token.line,
+                        value.token.lexeme,
+                    },
+                );
+            },
         }
     }
 };
 
-pub const Parser = struct {
-    allocator: std.mem.Allocator,
+pub const TokenConsumer = struct {
     tokens: []const Token,
-    current: usize = 0,
     errors: std.ArrayList(ParserError),
+    current: usize = 0,
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, tokens: []const Token) Parser {
+    pub fn init(allocator: std.mem.Allocator, tokens: []const Token) TokenConsumer {
         return .{
-            .allocator = allocator,
             .tokens = tokens,
             .errors = std.ArrayList(ParserError).init(allocator),
-            .current = 0,
         };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.errors.deinit();
     }
 
     fn peek(self: *Self) Token {
@@ -93,13 +106,6 @@ pub const Parser = struct {
     fn check(self: *Self, token_type: TokenType) bool {
         if (self.isAtEnd()) return false;
         return self.peek().type == token_type;
-    }
-
-    fn newExpr(self: *Self, value: anytype) Error!*Expr {
-        const expr = try self.allocator.create(Expr);
-        errdefer self.allocator.destroy(expr);
-        expr.* = value;
-        return expr;
     }
 
     fn match(self: *Self, token_types: anytype) bool {
@@ -131,6 +137,34 @@ pub const Parser = struct {
         }
         return error_token;
     }
+};
+
+pub const Parser = struct {
+    allocator: std.mem.Allocator,
+    token_consumer: TokenConsumer,
+    statements: std.ArrayList(Stmt),
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator, tokens: []const Token) Parser {
+        return .{
+            .allocator = allocator,
+            .token_consumer = TokenConsumer.init(allocator, tokens),
+            .statements = std.ArrayList(Stmt).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.token_consumer.deinit();
+        self.statements.deinit();
+    }
+
+    fn newExpr(self: *Self, value: anytype) Error!*Expr {
+        const expr = try self.allocator.create(Expr);
+        errdefer self.allocator.destroy(expr);
+        expr.* = value;
+        return expr;
+    }
 
     fn expression(self: *Self) Error!*Expr {
         return self.equality();
@@ -139,11 +173,11 @@ pub const Parser = struct {
     fn equality(self: *Self) Error!*Expr {
         var expr = try self.comparision();
 
-        while (self.match(.{
+        while (self.token_consumer.match(.{
             .BANG_EQUAL,
             .EQUAL_EQUAL,
         })) {
-            const op = self.previous();
+            const op = self.token_consumer.previous();
             const right = try self.comparision();
             expr = try self.newExpr(
                 .{ .Binary = .{
@@ -160,8 +194,8 @@ pub const Parser = struct {
     fn comparision(self: *Self) Error!*Expr {
         var expr = try self.term();
 
-        while (self.match(.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
-            const op = self.previous();
+        while (self.token_consumer.match(.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
+            const op = self.token_consumer.previous();
             const right = try self.term();
             expr = try self.newExpr(.{ .Binary = .{
                 .left = expr,
@@ -176,11 +210,11 @@ pub const Parser = struct {
     fn term(self: *Self) Error!*Expr {
         var expr = try self.factor();
 
-        while (self.match(.{
+        while (self.token_consumer.match(.{
             .MINUS,
             .PLUS,
         })) {
-            const op = self.previous();
+            const op = self.token_consumer.previous();
             const right = try self.factor();
             expr = try self.newExpr(.{ .Binary = .{
                 .left = expr,
@@ -196,11 +230,11 @@ pub const Parser = struct {
         // std.debug.print("factor {}\n", .{self.peek()});
         var expr = try self.unary();
 
-        while (self.match(.{
+        while (self.token_consumer.match(.{
             .SLASH,
             .STAR,
         })) {
-            const op = self.previous();
+            const op = self.token_consumer.previous();
             const right = try self.unary();
             expr = try self.newExpr(.{ .Binary = .{
                 .left = expr,
@@ -215,8 +249,8 @@ pub const Parser = struct {
     fn unary(self: *Self) Error!*Expr {
         // std.debug.print("unary {}\n", .{self.peek()});
 
-        if (self.match(.{ .BANG, .MINUS })) {
-            const op = self.previous();
+        if (self.token_consumer.match(.{ .BANG, .MINUS })) {
+            const op = self.token_consumer.previous();
             const expr = try self.unary();
             return self.newExpr(.{ .Unary = .{
                 .operator = op,
@@ -229,29 +263,32 @@ pub const Parser = struct {
 
     fn primary(self: *Self) Error!*Expr {
         // std.debug.print("primary {}\n", .{self.peek()});
-        if (self.match(.{.FALSE})) return self.newExpr(.{ .Literal = .{ .bool = false } });
-        if (self.match(.{.TRUE})) return self.newExpr(.{ .Literal = .{ .bool = true } });
-        if (self.match(.{.NIL})) return self.newExpr(.{ .Literal = .{ .nil = {} } });
+        if (self.token_consumer.match(.{.FALSE})) return self.newExpr(.{ .Literal = .{ .bool = false } });
+        if (self.token_consumer.match(.{.TRUE})) return self.newExpr(.{ .Literal = .{ .bool = true } });
+        if (self.token_consumer.match(.{.NIL})) return self.newExpr(.{ .Literal = .{ .nil = {} } });
 
-        if (self.match(.{ .NUMBER, .STRING })) {
+        if (self.token_consumer.match(.{ .NUMBER, .STRING })) {
             return self.newExpr(
                 .{
-                    .Literal = .{ .literal = self.previous().literal.? },
+                    .Literal = .{ .literal = self.token_consumer.previous().literal.? },
                 },
             );
         }
 
-        if (self.match(.{.LEFT_PAREN})) {
+        if (self.token_consumer.match(.{.LEFT_PAREN})) {
             const expr = try self.expression();
-            _ = self.consume(.RIGHT_PAREN, Error.ExpectedRightParen);
+            _ = self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedRightParen);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
 
-        try self.errors.append(ParserError.new(Error.ExpectedExpression, self.peek()));
+        try self.token_consumer.errors.append(
+            ParserError.new(Error.ExpectedExpression, self.token_consumer.peek()),
+        );
+        
         return Error.ExpectedExpression;
     }
 
-    pub fn parse(self: *Self) !?*Expr {
+    pub fn parseExpression(self: *Self) !?*Expr {
         return self.expression() catch |err| {
             switch (err) {
                 Error.ExpectedExpression => return null,
@@ -259,5 +296,32 @@ pub const Parser = struct {
                 else => return err,
             }
         };
+    }
+
+    pub fn statement(self: *Self) !Stmt {
+        if (self.token_consumer.match(.{.PRINT})) {
+            return self.printStatement();
+        }
+        return self.expressionStatement();
+    }
+
+    pub fn printStatement(self: *Self) !Stmt {
+        const value = try self.expression();
+        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+        return Stmt{ .Print = value };
+    }
+
+    pub fn expressionStatement(self: *Self) !Stmt {
+        const expr = try self.expression();
+        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+        return Stmt{ .Expression = expr };
+    }
+
+    pub fn parse(self: *Self) ![]Stmt {
+        while (!self.token_consumer.isAtEnd()) {
+            try self.statements.append(try self.statement());
+        }
+
+        return self.statements.items;
     }
 };

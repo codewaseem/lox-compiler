@@ -19,7 +19,7 @@ pub fn main() !void {
     const command = args[1];
     const filename = args[2];
 
-    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse") and !std.mem.eql(u8, command, "evaluate")) {
+    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse") and !std.mem.eql(u8, command, "evaluate") and !std.mem.eql(u8, command, "run")) {
         std.debug.print("Unknown command: {s}\n", .{command});
         std.process.exit(1);
     }
@@ -27,14 +27,14 @@ pub fn main() !void {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
+    const stdout = std.io.getStdOut().writer();
+
     // Scanning phase
     var scanner = try Scanner.new(file_contents, std.heap.page_allocator);
     defer scanner.deinit();
 
     const tokens = try scanner.scanTokens();
-    const scanner_errors = try scanner.getErrors();
-
-    const stdout = std.io.getStdOut().writer();
+    const scanner_errors = scanner.getErrors();
 
     // Output tokens if requested
     if (std.mem.eql(u8, command, "tokenize")) {
@@ -58,11 +58,15 @@ pub fn main() !void {
     defer arena.deinit();
 
     var parser = Parser.init(arena_allocator, tokens);
-    const expressions = try parser.parse();
+    defer parser.deinit();
+
+    var interpreter = Interpreter.init(arena_allocator);
 
     // Output parsed expression if requested
     if (std.mem.eql(u8, command, "parse")) {
-        for (parser.errors.items) |err| {
+        const expressions = try parser.parseExpression();
+
+        for (parser.token_consumer.errors.items) |err| {
             std.debug.print("{}", .{err});
         }
         if (expressions) |expr| {
@@ -70,25 +74,20 @@ pub fn main() !void {
         }
 
         // Exit with error if there were any parser errors
-        if (parser.errors.items.len > 0) {
+        if (parser.token_consumer.errors.items.len > 0) {
             std.process.exit(65);
         }
-    }
-
-    // Evaluation phase
-    if (expressions) |expr| {
-        // Output evaluated result if requested
-        if (std.mem.eql(u8, command, "evaluate")) {
-            var interpreter = Interpreter.init(arena_allocator);
-
-            if (interpreter.interpret(expr)) |result| {
-                try stdout.print("{}\n", .{result});
-            } else |_| {
-                if (interpreter.runtime_error) |runtime_error| {
-                    std.debug.print("{}", .{runtime_error});
-                }
-                std.process.exit(70);
-            }
+    } else if (std.mem.eql(u8, command, "evaluate")) {
+        const expressions = try parser.parseExpression() orelse unreachable;
+        try interpreter.interpret(expressions);
+        if (interpreter.runtime_error) {
+            std.process.exit(70);
         }
+    } else if (std.mem.eql(u8, command, "run")) {
+        const statements = parser.parse() catch |err| {
+            std.debug.print("Error: {}\n", .{err});
+            std.process.exit(65);
+        };
+        try interpreter.run(statements);
     }
 }

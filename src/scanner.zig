@@ -245,7 +245,7 @@ pub const Scanner = struct {
         return self.tokens.items;
     }
 
-    pub fn getErrors(self: *Scanner) ![]const Error {
+    pub fn getErrors(self: *Scanner) []const Error {
         return self.errors.items;
     }
 };
