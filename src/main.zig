@@ -79,9 +79,13 @@ pub fn main() !void {
         }
     } else if (std.mem.eql(u8, command, "evaluate")) {
         const expressions = try parser.parseExpression() orelse unreachable;
-        try interpreter.interpret(expressions);
-        if (interpreter.runtime_error) {
-            std.process.exit(70);
+        if (interpreter.interpret(expressions)) |value| {
+            try stdout.print("{}\n", .{value});
+        } else |err| {
+            if (interpreter.runtime_error) {
+                std.process.exit(70);
+            }
+            std.debug.print("{}", .{err});
         }
     } else if (std.mem.eql(u8, command, "run")) {
         const statements = parser.parse() catch |err| {
@@ -92,7 +96,7 @@ pub fn main() !void {
             if (interpreter.runtime_error) {
                 std.process.exit(70);
             }
-            return err;
+            std.debug.print("Error: {}\n", .{err});
         };
     }
 }

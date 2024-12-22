@@ -72,9 +72,9 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, expression: *Expr) !void {
+    pub fn interpret(self: *Self, expression: *Expr) !Value {
         if (self.evaluate(expression)) |value| {
-            try std.io.getStdOut().writer().print("{s}\n", .{value});
+            return value;
         } else |err| {
             self.runtime_error = true;
             switch (err) {
@@ -98,6 +98,7 @@ pub const Interpreter = struct {
                 },
                 else => unreachable,
             }
+            return err;
         }
     }
 
@@ -110,10 +111,7 @@ pub const Interpreter = struct {
     pub fn interpretStatement(self: *Self, stm: Stmt) !void {
         switch (stm) {
             .Expression => |expression| {
-                _ = self.evaluate(expression) catch |err| {
-                    self.runtime_error = true;
-                    return err;
-                };
+                _ = try self.interpret(expression);
             },
             .Print => |expression| {
                 const value = try self.evaluate(expression);
