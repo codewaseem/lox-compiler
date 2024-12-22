@@ -110,7 +110,10 @@ pub const Interpreter = struct {
     pub fn interpretStatement(self: *Self, stm: Stmt) !void {
         switch (stm) {
             .Expression => |expression| {
-                _ = try self.evaluate(expression);
+                _ = self.evaluate(expression) catch |err| {
+                    self.runtime_error = true;
+                    return err;
+                };
             },
             .Print => |expression| {
                 const value = try self.evaluate(expression);

@@ -9,4 +9,5 @@ print "hello"; print true;
 print false;
 print "bar"; print 43;
 
-print;
+
+"bar" + 124;
