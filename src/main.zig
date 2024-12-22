@@ -88,9 +88,11 @@ pub fn main() !void {
             std.debug.print("Error: {}\n", .{err});
             std.process.exit(65);
         };
-        try interpreter.run(statements);
-        if (interpreter.runtime_error) {
-            std.process.exit(70);
-        }
+        try interpreter.run(statements) catch |err| {
+            if (interpreter.runtime_error) {
+                std.process.exit(70);
+            }
+            return err;
+        };
     }
 }
