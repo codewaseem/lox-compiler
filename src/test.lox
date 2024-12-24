@@ -1,3 +1,5 @@
-var quz = 76;
-var baz = quz;
-print baz + quz;
+var quz = 20;
+var world = 51;
+var hello = 56;
+world = 20;
+print quz + world;

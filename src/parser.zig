@@ -18,6 +18,7 @@ const Error = error{
     ExpectedRightParen,
     ExpectedSemicolon,
     ExpectedVariableName,
+    InvalidAssignmentTarget,
 };
 
 const ParserError = struct {
@@ -70,6 +71,13 @@ const ParserError = struct {
                 try std.fmt.format(
                     writer,
                     "[line {d}] Error: Expected variable name.",
+                    .{value.token.line},
+                );
+            },
+            Error.InvalidAssignmentTarget => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error: Invalid assignment target.",
                     .{value.token.line},
                 );
             },
@@ -140,6 +148,9 @@ pub const TokenConsumer = struct {
                     std.debug.print("Unexpected Error: {}\n", .{err});
                 };
             },
+            Error.ExpectedSemicolon => {
+                try self.errors.append(ParserError.new(Error.ExpectedSemicolon, error_token));
+            },
             else => {
                 @panic("Unhandled error case\n");
             },
@@ -176,7 +187,33 @@ pub const Parser = struct {
     }
 
     fn expression(self: *Self) Error!*Expr {
-        return self.equality();
+        return self.assignment();
+    }
+
+    fn assignment(self: *Self) Error!*Expr {
+        const expr = try self.equality();
+
+        if (self.token_consumer.match(.{.EQUAL})) {
+            const equals = self.token_consumer.previous();
+            const value = try self.assignment();
+
+            switch (expr.*) {
+                .Var => |v| {
+                    return self.newExpr(.{ .Assign = .{
+                        .name = v,
+                        .value = value,
+                    } });
+                },
+                else => {
+                    try self.token_consumer.errors.append(
+                        ParserError.new(Error.InvalidAssignmentTarget, equals),
+                    );
+                    return Error.InvalidAssignmentTarget;
+                },
+            }
+        }
+
+        return expr;
     }
 
     fn equality(self: *Self) Error!*Expr {
@@ -301,7 +338,7 @@ pub const Parser = struct {
     }
 
     pub fn parseExpression(self: *Self) !?*Expr {
-        return self.expression() catch |err| {
+        return self.assignment() catch |err| {
             switch (err) {
                 Error.ExpectedExpression => return null,
                 Error.ExpectedRightParen => return null,

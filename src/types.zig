@@ -113,9 +113,17 @@ pub const Envirnoment = struct {
         try self.values.put(name, val);
     }
 
-    pub fn get(self: *Self, var_token: Token) !Value {
-        if (self.values.contains(var_token.lexeme)) {
-            return self.values.get(var_token.lexeme) orelse .{ .nil = {} };
+    pub fn assign(self: *Self, name: []const u8, val: Value) !void {
+        if (self.values.contains(name)) {
+            try self.values.put(name, val);
+            return;
+        }
+        return error.UndefinedVariable;
+    }
+
+    pub fn get(self: *Self, name: []const u8) !Value {
+        if (self.values.contains(name)) {
+            return self.values.get(name).?;
         }
         return error.UndefinedVariable;
     }
@@ -176,11 +184,17 @@ pub const LiteralExpression = union(enum) {
     }
 };
 
+pub const AssignmentExpression = struct {
+    name: Token,
+    value: *Expr,
+};
+
 pub const Expr = union(enum) {
     Binary: BinaryExpression,
     Unary: UnaryExpression,
     Group: GroupingExpression,
     Literal: LiteralExpression,
+    Assign: AssignmentExpression,
     Var: Token,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
@@ -194,6 +208,13 @@ pub const Expr = union(enum) {
                     binary.left,
                     binary.right,
                 });
+            },
+            .Assign => |assign| {
+                try std.fmt.format(
+                    writer,
+                    "(= {s} {})",
+                    .{ assign.name.lexeme, assign.value },
+                );
             },
             .Unary => |unary| {
                 try std.fmt.format(writer, "({s} {})", .{

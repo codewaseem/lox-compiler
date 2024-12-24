@@ -8,6 +8,7 @@ const Literal = types.Literal;
 const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
 const BinaryExpression = types.BinaryExpression;
+const AssignmentExpression = types.AssignmentExpression;
 const Stmt = types.Stmt;
 const Token = types.Token;
 const Environment = types.Envirnoment;
@@ -69,7 +70,7 @@ pub const Interpreter = struct {
                 InterpreterErrorSet.OperandsMustBeTwoNumbersOrStrings => std.debug.print("{s}", .{
                     "Operands must be two numbers or two strings.\n",
                 }),
-                else => unreachable,
+                else => {},
             }
             switch (expression.*) {
                 .Binary => |binary| {
@@ -77,6 +78,12 @@ pub const Interpreter = struct {
                 },
                 .Unary => |unary| {
                     std.debug.print("[line {d}]\n", .{unary.operator.line});
+                },
+                .Var => |v| {
+                    std.debug.print("[line {d}]\n", .{v.line});
+                },
+                .Assign => |v| {
+                    std.debug.print("[line {d}]\n", .{v.name.line});
                 },
                 else => unreachable,
             }
@@ -294,7 +301,19 @@ pub const Interpreter = struct {
     }
 
     fn evaluateVarExpression(self: *Self, token: Token) InterpreterErrorSet!Value {
-        return self.env.get(token);
+        return self.env.get(token.lexeme) catch |err| {
+            std.debug.print("Undefined variable '{s}'.\n", .{token.lexeme});
+            return err;
+        };
+    }
+
+    fn evaluateAssignment(self: *Self, expr: *AssignmentExpression) InterpreterErrorSet!Value {
+        const value = try self.evaluate(expr.value);
+        self.env.assign(expr.name.lexeme, value) catch |err| {
+            std.debug.print("Undefined variable '{s}'.\n", .{expr.name.lexeme});
+            return err;
+        };
+        return value;
     }
 
     fn evaluate(self: *Self, expression: *Expr) InterpreterErrorSet!Value {
@@ -303,6 +322,7 @@ pub const Interpreter = struct {
             .Group => |*grouping| return self.evaluateGrouping(grouping),
             .Unary => |*unary| return self.evaluateUnaryExpression(unary),
             .Binary => |*binary| return self.evaluateBinaryExpression(binary),
+            .Assign => |*assign| return self.evaluateAssignment(assign),
             .Var => |token| return self.evaluateVarExpression(token),
         }
     }
