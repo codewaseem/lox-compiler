@@ -127,7 +127,7 @@ pub const TokenConsumer = struct {
         } else false;
     }
 
-    fn consume(self: *Self, token_type: TokenType, error_type: Error) Token {
+    fn consume(self: *Self, token_type: TokenType, error_type: Error) !Token {
         if (self.check(token_type)) return self.advance();
 
         const error_token = self.peek();
@@ -144,7 +144,7 @@ pub const TokenConsumer = struct {
                 @panic("Unhandled error case\n");
             },
         }
-        return error_token;
+        return error_type;
     }
 };
 
@@ -285,8 +285,12 @@ pub const Parser = struct {
 
         if (self.token_consumer.match(.{.LEFT_PAREN})) {
             const expr = try self.expression();
-            _ = self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedRightParen);
+            _ = try self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedRightParen);
             return self.newExpr(.{ .Group = .{ .expression = expr } });
+        }
+
+        if (self.token_consumer.match(.{.IDENTIFIER})) {
+            return self.newExpr(.{ .Var = self.token_consumer.previous() });
         }
 
         try self.token_consumer.errors.append(
@@ -321,7 +325,7 @@ pub const Parser = struct {
     }
 
     pub fn varDeclaration(self: *Self) !Stmt {
-        const name_token = self.token_consumer.consume(.IDENTIFIER, Error.ExpectedVariableName);
+        const name_token = try self.token_consumer.consume(.IDENTIFIER, Error.ExpectedVariableName);
 
         var expr: *Expr = undefined;
 
@@ -329,20 +333,20 @@ pub const Parser = struct {
             expr = try self.expression();
         }
 
-        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+        _ = try self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
 
         return Stmt{ .Var = .{ .name = name_token, .initializer = expr } };
     }
 
     pub fn printStatement(self: *Self) !Stmt {
         const value = try self.expression();
-        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+        _ = try self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
         return Stmt{ .Print = value };
     }
 
     pub fn expressionStatement(self: *Self) !Stmt {
         const expr = try self.expression();
-        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+        _ = try self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
         return Stmt{ .Expression = expr };
     }
 

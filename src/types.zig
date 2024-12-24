@@ -116,7 +116,8 @@ pub const Envirnoment = struct {
     pub fn get(self: *Self, var_token: Token) !Value {
         if (self.values.contains(var_token.lexeme)) {
             return self.values.get(var_token.lexeme) orelse .{ .nil = {} };
-        } else unreachable;
+        }
+        return error.UndefinedVariable;
     }
 };
 
@@ -204,7 +205,7 @@ pub const Expr = union(enum) {
                 try std.fmt.format(writer, "(group {})", .{group.expression});
             },
             .Var => |token| {
-                try std.fmt.format(writer, "{any}", .{token.lexeme});
+                try std.fmt.format(writer, "{s}", .{token.lexeme});
             },
         }
     }

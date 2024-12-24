@@ -18,6 +18,7 @@ pub const InterpreterErrorSet = error{
     OperandMustBeNumber,
     OperandsMustBeNumbers,
     OperandsMustBeTwoNumbersOrStrings,
+    UndefinedVariable,
 };
 
 pub const InterpreterError = struct {
