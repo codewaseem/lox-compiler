@@ -289,10 +289,6 @@ pub const Parser = struct {
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
 
-        if (self.token_consumer.match(.{.IDENTIFIER})) {
-            return self.newExpr(.{ .Var = self.token_consumer.previous() });
-        }
-
         try self.token_consumer.errors.append(
             ParserError.new(Error.ExpectedExpression, self.token_consumer.peek()),
         );
