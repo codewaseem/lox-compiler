@@ -69,6 +69,57 @@ pub const Literal = union(enum) {
     }
 };
 
+pub const Value = union(enum) {
+    bool: bool,
+    nil: void,
+    num: f64,
+    str: []const u8,
+
+    pub fn format(this: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (this) {
+            .bool => |value| try std.fmt.format(writer, "{}", .{value}),
+            .nil => try std.fmt.format(writer, "{s}", .{"nil"}),
+            .num => |value| {
+                var buf: [256]u8 = undefined;
+                const str = try std.fmt.bufPrint(&buf, "{d}", .{value});
+                // if the number ends with .0, remove the .0
+                if (std.mem.endsWith(u8, str, ".0")) {
+                    try writer.writeAll(str[0 .. str.len - 2]);
+                } else {
+                    try writer.writeAll(str);
+                }
+            },
+            .str => |value| try std.fmt.format(writer, "{s}", .{value}),
+        }
+    }
+};
+
+pub const Envirnoment = struct {
+    values: std.StringHashMap(Value),
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator) Envirnoment {
+        return .{
+            .values = std.StringHashMap(Value).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.values.deinit();
+    }
+
+    pub fn define(self: *Self, name: []const u8, val: Value) !void {
+        try self.values.put(name, val);
+    }
+
+    pub fn get(self: *Self, var_token: Token) !Value {
+        if (self.values.contains(var_token.lexeme)) {
+            return self.values.get(var_token.lexeme) orelse .{ .nil = {} };
+        } else unreachable;
+    }
+};
+
 pub const Token = struct {
     type: TokenType = undefined,
     lexeme: []const u8 = undefined,
@@ -129,6 +180,7 @@ pub const Expr = union(enum) {
     Unary: UnaryExpression,
     Group: GroupingExpression,
     Literal: LiteralExpression,
+    Var: Token,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
@@ -151,13 +203,22 @@ pub const Expr = union(enum) {
             .Group => |group| {
                 try std.fmt.format(writer, "(group {})", .{group.expression});
             },
+            .Var => |token| {
+                try std.fmt.format(writer, "{any}", .{token.lexeme});
+            },
         }
     }
+};
+
+pub const Variable = struct {
+    name: Token,
+    initializer: *Expr,
 };
 
 pub const Stmt = union(enum) {
     Expression: *Expr,
     Print: *Expr,
+    Var: Variable,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
@@ -166,6 +227,9 @@ pub const Stmt = union(enum) {
             },
             .Print => |value| {
                 try std.fmt.format(writer, "{}", .{value});
+            },
+            .Var => |variable| {
+                try std.fmt.format(writer, "{}", .{variable.initializer});
             },
         }
     }

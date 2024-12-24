@@ -9,6 +9,7 @@ const BinaryExpression = types.BinaryExpression;
 const UnaryExpression = types.UnaryExpression;
 const GroupingExpression = types.GroupingExpression;
 const LiteralExpression = types.LiteralExpression;
+const Value = types.Value;
 const Stmt = types.Stmt;
 
 const Error = error{
@@ -16,6 +17,7 @@ const Error = error{
     ExpectedExpression,
     ExpectedRightParen,
     ExpectedSemicolon,
+    ExpectedVariableName,
 };
 
 const ParserError = struct {
@@ -62,6 +64,13 @@ const ParserError = struct {
                         value.token.line,
                         value.token.lexeme,
                     },
+                );
+            },
+            Error.ExpectedVariableName => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error: Expected variable name.",
+                    .{value.token.line},
                 );
             },
         }
@@ -262,7 +271,6 @@ pub const Parser = struct {
     }
 
     fn primary(self: *Self) Error!*Expr {
-        // std.debug.print("primary {}\n", .{self.peek()});
         if (self.token_consumer.match(.{.FALSE})) return self.newExpr(.{ .Literal = .{ .bool = false } });
         if (self.token_consumer.match(.{.TRUE})) return self.newExpr(.{ .Literal = .{ .bool = true } });
         if (self.token_consumer.match(.{.NIL})) return self.newExpr(.{ .Literal = .{ .nil = {} } });
@@ -281,10 +289,14 @@ pub const Parser = struct {
             return self.newExpr(.{ .Group = .{ .expression = expr } });
         }
 
+        if (self.token_consumer.match(.{.IDENTIFIER})) {
+            return self.newExpr(.{ .Var = self.token_consumer.previous() });
+        }
+
         try self.token_consumer.errors.append(
             ParserError.new(Error.ExpectedExpression, self.token_consumer.peek()),
         );
-        
+
         return Error.ExpectedExpression;
     }
 
@@ -305,6 +317,27 @@ pub const Parser = struct {
         return self.expressionStatement();
     }
 
+    pub fn declaration(self: *Self) !Stmt {
+        if (self.token_consumer.match(.{.VAR})) {
+            return self.varDeclaration();
+        }
+        return self.statement();
+    }
+
+    pub fn varDeclaration(self: *Self) !Stmt {
+        const name_token = self.token_consumer.consume(.IDENTIFIER, Error.ExpectedVariableName);
+
+        var expr: *Expr = undefined;
+
+        if (self.token_consumer.match(.{.EQUAL})) {
+            expr = try self.expression();
+        }
+
+        _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
+
+        return Stmt{ .Var = .{ .name = name_token, .initializer = expr } };
+    }
+
     pub fn printStatement(self: *Self) !Stmt {
         const value = try self.expression();
         _ = self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
@@ -319,7 +352,7 @@ pub const Parser = struct {
 
     pub fn parse(self: *Self) ![]Stmt {
         while (!self.token_consumer.isAtEnd()) {
-            try self.statements.append(try self.statement());
+            try self.statements.append(try self.declaration());
         }
 
         return self.statements.items;

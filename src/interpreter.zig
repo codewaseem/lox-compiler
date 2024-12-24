@@ -1,5 +1,7 @@
 const std = @import("std");
 const types = @import("./types.zig");
+
+const Value = types.Value;
 const Expr = types.Expr;
 const LiteralExpression = types.LiteralExpression;
 const Literal = types.Literal;
@@ -7,6 +9,8 @@ const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
 const BinaryExpression = types.BinaryExpression;
 const Stmt = types.Stmt;
+const Token = types.Token;
+const Environment = types.Envirnoment;
 
 pub const InterpreterErrorSet = error{
     OutOfMemory,
@@ -35,40 +39,17 @@ pub const InterpreterError = struct {
     }
 };
 
-const Value = union(enum) {
-    bool: bool,
-    nil: void,
-    num: f64,
-    str: []const u8,
-
-    pub fn format(this: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-        switch (this) {
-            .bool => |value| try std.fmt.format(writer, "{}", .{value}),
-            .nil => try std.fmt.format(writer, "{s}", .{"nil"}),
-            .num => |value| {
-                var buf: [256]u8 = undefined;
-                const str = try std.fmt.bufPrint(&buf, "{d}", .{value});
-                // if the number ends with .0, remove the .0
-                if (std.mem.endsWith(u8, str, ".0")) {
-                    try writer.writeAll(str[0 .. str.len - 2]);
-                } else {
-                    try writer.writeAll(str);
-                }
-            },
-            .str => |value| try std.fmt.format(writer, "{s}", .{value}),
-        }
-    }
-};
-
 pub const Interpreter = struct {
     allocator: std.mem.Allocator,
     runtime_error: bool = false,
+    env: Environment,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Interpreter {
         return .{
             .allocator = allocator,
+            .env = Environment.init(allocator),
         };
     }
 
@@ -116,6 +97,10 @@ pub const Interpreter = struct {
             .Print => |expression| {
                 const value = try self.interpret(expression);
                 try std.io.getStdOut().writer().print("{s}\n", .{value});
+            },
+            .Var => |v| {
+                const val: Value = try self.interpret(v.initializer);
+                try self.env.define(v.name.lexeme, val);
             },
         }
     }
@@ -307,12 +292,17 @@ pub const Interpreter = struct {
         };
     }
 
+    fn evaluateVarExpression(self: *Self, token: Token) InterpreterErrorSet!Value {
+        return self.env.get(token);
+    }
+
     fn evaluate(self: *Self, expression: *Expr) InterpreterErrorSet!Value {
         switch (expression.*) {
             .Literal => |*literal| return self.evaluateLiteral(literal),
             .Group => |*grouping| return self.evaluateGrouping(grouping),
             .Unary => |*unary| return self.evaluateUnaryExpression(unary),
             .Binary => |*binary| return self.evaluateBinaryExpression(binary),
+            .Var => |token| return self.evaluateVarExpression(token),
         }
     }
 };
