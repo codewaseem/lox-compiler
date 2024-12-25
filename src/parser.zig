@@ -364,7 +364,7 @@ pub const Parser = struct {
     pub fn varDeclaration(self: *Self) !Stmt {
         const name_token = try self.token_consumer.consume(.IDENTIFIER, Error.ExpectedVariableName);
 
-        var expr: *Expr = undefined;
+        var expr: *Expr = try self.newExpr(.{ .Literal = .{ .nil = {} } });
 
         if (self.token_consumer.match(.{.EQUAL})) {
             expr = try self.expression();
