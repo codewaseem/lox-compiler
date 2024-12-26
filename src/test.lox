@@ -1,6 +1,8 @@
 {
-    var bar = 11;
-    var world = 11;
+    var world = "before";
     {
-        print bar + world;
+        var world = "after";
+        print world;
+    }
+    print world;
 }
