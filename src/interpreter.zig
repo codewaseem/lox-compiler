@@ -51,7 +51,7 @@ pub const Interpreter = struct {
     pub fn init(allocator: std.mem.Allocator) Interpreter {
         return .{
             .allocator = allocator,
-            .env = Environment.init(allocator),
+            .env = Environment.init(allocator, null),
         };
     }
 
@@ -97,20 +97,39 @@ pub const Interpreter = struct {
         }
     }
 
-    pub fn interpretStatement(self: *Self, stm: Stmt) !void {
+    pub fn interpretStatement(self: *Self, stm: Stmt) InterpreterErrorSet!void {
         switch (stm) {
             .Expression => |expression| {
                 _ = try self.interpret(expression);
             },
             .Print => |expression| {
                 const value = try self.interpret(expression);
-                try std.io.getStdOut().writer().print("{s}\n", .{value});
+                std.io.getStdOut().writer().print("{s}\n", .{value}) catch unreachable;
             },
             .Var => |v| {
                 const val: Value = try self.interpret(v.initializer);
                 try self.env.define(v.name.lexeme, val);
             },
+            .Block => |block| {
+                try self.interpretBlock(block);
+            },
         }
+    }
+
+    pub fn interpretBlock(self: *Self, statements: []const Stmt) InterpreterErrorSet!void {
+        try self.executeBlock(statements, Environment.init(self.allocator, &self.env));
+    }
+
+    pub fn executeBlock(self: *Self, statements: []const Stmt, new_env: Environment) InterpreterErrorSet!void {
+        const prevEnv = self.env;
+
+        self.env = new_env;
+
+        for (statements) |stm| {
+            try self.interpretStatement(stm);
+        }
+
+        self.env = prevEnv;
     }
 
     fn evaluateLiteral(_: *Self, expression: *LiteralExpression) Value {

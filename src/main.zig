@@ -88,8 +88,10 @@ pub fn main() !void {
             std.debug.print("{}", .{err});
         }
     } else if (std.mem.eql(u8, command, "run")) {
-        const statements = parser.parse() catch |err| {
-            std.debug.print("Error: {}\n", .{err});
+        const statements = parser.parse() catch {
+            for (parser.token_consumer.errors.items) |err| {
+                std.debug.print("{}", .{err});
+            }
             std.process.exit(65);
         };
         interpreter.run(statements) catch |err| {

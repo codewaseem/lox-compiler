@@ -19,9 +19,10 @@ const Error = error{
     ExpectedSemicolon,
     ExpectedVariableName,
     InvalidAssignmentTarget,
+    ExpectedRightBrace,
 };
 
-const ParserError = struct {
+pub const ParserError = struct {
     token: Token,
     error_type: Error,
 
@@ -79,6 +80,13 @@ const ParserError = struct {
                     writer,
                     "[line {d}] Error: Invalid assignment target.",
                     .{value.token.line},
+                );
+            },
+            Error.ExpectedRightBrace => {
+                try std.fmt.format(
+                    writer,
+                    "[line {d}] Error at end: Expect '{s}'.\n",
+                    .{ value.token.line - 1, "}" },
                 );
             },
         }
@@ -150,6 +158,9 @@ pub const TokenConsumer = struct {
             },
             Error.ExpectedSemicolon => {
                 try self.errors.append(ParserError.new(Error.ExpectedSemicolon, error_token));
+            },
+            Error.ExpectedRightBrace => {
+                try self.errors.append(ParserError.new(Error.ExpectedRightBrace, error_token));
             },
             else => {
                 @panic("Unhandled error case\n");
@@ -347,21 +358,26 @@ pub const Parser = struct {
         };
     }
 
-    pub fn statement(self: *Self) !Stmt {
+    pub fn statement(self: *Self) Error!Stmt {
         if (self.token_consumer.match(.{.PRINT})) {
             return self.printStatement();
         }
+
+        if (self.token_consumer.match(.{.LEFT_BRACE})) {
+            return self.blockStatement();
+        }
+
         return self.expressionStatement();
     }
 
-    pub fn declaration(self: *Self) !Stmt {
+    pub fn declaration(self: *Self) Error!Stmt {
         if (self.token_consumer.match(.{.VAR})) {
             return self.varDeclaration();
         }
         return self.statement();
     }
 
-    pub fn varDeclaration(self: *Self) !Stmt {
+    pub fn varDeclaration(self: *Self) Error!Stmt {
         const name_token = try self.token_consumer.consume(.IDENTIFIER, Error.ExpectedVariableName);
 
         var expr: *Expr = try self.newExpr(.{ .Literal = .{ .nil = {} } });
@@ -375,13 +391,24 @@ pub const Parser = struct {
         return Stmt{ .Var = .{ .name = name_token, .initializer = expr } };
     }
 
-    pub fn printStatement(self: *Self) !Stmt {
+    pub fn printStatement(self: *Self) Error!Stmt {
         const value = try self.expression();
         _ = try self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
         return Stmt{ .Print = value };
     }
 
-    pub fn expressionStatement(self: *Self) !Stmt {
+    pub fn blockStatement(self: *Self) Error!Stmt {
+        var statements = std.ArrayList(Stmt).init(self.allocator);
+
+        while (!self.token_consumer.check(.RIGHT_BRACE) and !self.token_consumer.isAtEnd()) {
+            try statements.append(try self.declaration());
+        }
+
+        _ = try self.token_consumer.consume(.RIGHT_BRACE, Error.ExpectedRightBrace);
+        return Stmt{ .Block = statements.items };
+    }
+
+    pub fn expressionStatement(self: *Self) Error!Stmt {
         const expr = try self.expression();
         _ = try self.token_consumer.consume(.SEMICOLON, Error.ExpectedSemicolon);
         return Stmt{ .Expression = expr };

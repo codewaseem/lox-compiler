@@ -95,13 +95,17 @@ pub const Value = union(enum) {
 };
 
 pub const Envirnoment = struct {
+    allocator: std.mem.Allocator,
     values: std.StringHashMap(Value),
+    enclosing: ?*Envirnoment = null,
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator) Envirnoment {
+    pub fn init(allocator: std.mem.Allocator, enclosing: ?*Envirnoment) Envirnoment {
         return .{
+            .allocator = allocator,
             .values = std.StringHashMap(Value).init(allocator),
+            .enclosing = enclosing,
         };
     }
 
@@ -118,6 +122,12 @@ pub const Envirnoment = struct {
             try self.values.put(name, val);
             return;
         }
+
+        if (self.enclosing) |enc| {
+            try enc.assign(name, val);
+            return;
+        }
+
         return error.UndefinedVariable;
     }
 
@@ -125,6 +135,11 @@ pub const Envirnoment = struct {
         if (self.values.contains(name)) {
             return self.values.get(name).?;
         }
+
+        if (self.enclosing) |enc| {
+            return enc.get(name);
+        }
+
         return error.UndefinedVariable;
     }
 };
@@ -241,6 +256,7 @@ pub const Stmt = union(enum) {
     Expression: *Expr,
     Print: *Expr,
     Var: Variable,
+    Block: []const Stmt,
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
@@ -252,6 +268,11 @@ pub const Stmt = union(enum) {
             },
             .Var => |variable| {
                 try std.fmt.format(writer, "{}", .{variable.initializer});
+            },
+            .Block => |block| {
+                for (block) |stmt| {
+                    try std.fmt.format(writer, "{}", .{stmt});
+                }
             },
         }
     }
