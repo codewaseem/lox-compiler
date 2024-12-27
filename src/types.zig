@@ -96,6 +96,7 @@ pub const Value = union(enum) {
 
 pub const Envirnoment = struct {
     allocator: std.mem.Allocator,
+    scope: usize = 0,
     values: std.StringHashMap(Value),
     enclosing: ?*Envirnoment = null,
 
@@ -132,6 +133,12 @@ pub const Envirnoment = struct {
     }
 
     pub fn get(self: *Self, name: []const u8) !Value {
+        var iter = self.values.iterator();
+
+        while (iter.next()) |entry| {
+            std.debug.print("{s} = {}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+        }
+
         if (self.values.contains(name)) {
             return self.values.get(name).?;
         }

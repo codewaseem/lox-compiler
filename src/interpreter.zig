@@ -117,11 +117,10 @@ pub const Interpreter = struct {
     }
 
     pub fn interpretBlock(self: *Self, statements: []const Stmt) InterpreterErrorSet!void {
-        try self.executeBlock(statements, Environment.init(self.allocator, &self.env));
-    }
-
-    pub fn executeBlock(self: *Self, statements: []const Stmt, new_env: Environment) InterpreterErrorSet!void {
-        const prevEnv = self.env;
+        std.debug.print("processing block\n", .{});
+        const prev_env = self.env;
+        var new_env = Environment.init(self.allocator, &self.env);
+        new_env.scope = self.env.scope + 1;
 
         self.env = new_env;
 
@@ -129,7 +128,8 @@ pub const Interpreter = struct {
             try self.interpretStatement(stm);
         }
 
-        self.env = prevEnv;
+        new_env.deinit();
+        self.env = prev_env;
     }
 
     fn evaluateLiteral(_: *Self, expression: *LiteralExpression) Value {
