@@ -117,10 +117,8 @@ pub const Interpreter = struct {
     }
 
     pub fn interpretBlock(self: *Self, statements: []const Stmt) InterpreterErrorSet!void {
-        std.debug.print("processing block\n", .{});
-        const prev_env = self.env;
-        var new_env = Environment.init(self.allocator, &self.env);
-        new_env.scope = self.env.scope + 1;
+        var prev_env = self.env;
+        var new_env = Environment.init(self.allocator, &prev_env);
 
         self.env = new_env;
 
