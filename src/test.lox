@@ -22,3 +22,5 @@ print stage;
 var isAdult = age >= 18;
 if (isAdult) { print "eligible for voting: true"; }
 if (!isAdult) { print "eligible for voting: false"; }
+
+if (true) print "if branch"; else print "else branch";
