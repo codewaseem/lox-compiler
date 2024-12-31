@@ -20,6 +20,8 @@ const Error = error{
     ExpectedVariableName,
     InvalidAssignmentTarget,
     ExpectedRightBrace,
+    ExpectedLeftParenAfterIf,
+    ExpectedRightParenAfterIf,
 };
 
 pub const ParserError = struct {
@@ -88,6 +90,12 @@ pub const ParserError = struct {
                     "[line {d}] Error at end: Expect '{s}'.\n",
                     .{ value.token.line - 1, "}" },
                 );
+            },
+            Error.ExpectedLeftParenAfterIf => {
+                try std.fmt.format(writer, "Expect '(' after 'if'.\n", .{});
+            },
+            Error.ExpectedRightParenAfterIf => {
+                try std.fmt.format(writer, "Expect ')' after if condition.", .{});
             },
         }
     }
@@ -359,6 +367,10 @@ pub const Parser = struct {
     }
 
     pub fn statement(self: *Self) Error!Stmt {
+        if (self.token_consumer.match(.{.IF})) {
+            return self.ifStatement();
+        }
+
         if (self.token_consumer.match(.{.PRINT})) {
             return self.printStatement();
         }
@@ -368,6 +380,27 @@ pub const Parser = struct {
         }
 
         return self.expressionStatement();
+    }
+
+    pub fn ifStatement(self: *Self) Error!Stmt {
+        _ = try self.token_consumer.consume(.LEFT_PAREN, Error.ExpectedLeftParenAfterIf);
+        const condition = try self.expression();
+        _ = try self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedLeftParenAfterIf);
+
+        const then_stmt = try self.statement();
+        var else_stmt: ?Stmt = null;
+
+        if (self.token_consumer.match(.{.ELSE})) {
+            else_stmt = try self.statement();
+        }
+
+        return Stmt{
+            .If = .{
+                .condition = condition,
+                .then_branch = try Stmt.new(self.allocator, then_stmt),
+                .else_branch = if (else_stmt) |v| try Stmt.new(self.allocator, v) else null,
+            },
+        };
     }
 
     pub fn declaration(self: *Self) Error!Stmt {

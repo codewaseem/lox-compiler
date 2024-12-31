@@ -252,11 +252,26 @@ pub const Variable = struct {
     initializer: *Expr,
 };
 
+pub const IfStmt = struct {
+    condition: *Expr,
+    then_branch: *Stmt,
+    else_branch: ?*Stmt = null,
+};
+
 pub const Stmt = union(enum) {
     Expression: *Expr,
     Print: *Expr,
     Var: Variable,
     Block: []const Stmt,
+    If: IfStmt,
+
+    pub fn new(allocator: std.mem.Allocator, value: Stmt) !*Stmt {
+        const stmt_ptr = try allocator.create(Stmt);
+        errdefer allocator.destroy(stmt_ptr);
+
+        stmt_ptr.* = value;
+        return stmt_ptr;
+    }
 
     pub fn format(this: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (this) {
@@ -273,6 +288,13 @@ pub const Stmt = union(enum) {
                 for (block) |stmt| {
                     try std.fmt.format(writer, "{}", .{stmt});
                 }
+            },
+            .If => |if_statement| {
+                try std.fmt.format(writer, "if ({}) \n\t then {} \n\t else {}", .{
+                    if_statement.condition,
+                    if_statement.then_branch,
+                    if_statement.else_branch,
+                });
             },
         }
     }

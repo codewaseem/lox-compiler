@@ -12,6 +12,7 @@ const AssignmentExpression = types.AssignmentExpression;
 const Stmt = types.Stmt;
 const Token = types.Token;
 const Environment = types.Envirnoment;
+const IfStmt = types.IfStmt;
 
 pub const InterpreterErrorSet = error{
     OutOfMemory,
@@ -113,6 +114,17 @@ pub const Interpreter = struct {
             .Block => |block| {
                 try self.interpretBlock(block);
             },
+            .If => |if_stmt| {
+                try self.interpretIfBlock(if_stmt);
+            },
+        }
+    }
+
+    pub fn interpretIfBlock(self: *Self, stmt: IfStmt) InterpreterErrorSet!void {
+        if (self.isTruthy(try self.evaluate(stmt.condition))) {
+            try self.interpretStatement(stmt.then_branch.*);
+        } else if (stmt.else_branch) |b| {
+            try self.interpretStatement(b.*);
         }
     }
 
