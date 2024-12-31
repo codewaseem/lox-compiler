@@ -1,26 +1,8 @@
-if (true) print "good";
+if (false or "ok") print "baz";
+if (nil or "ok") print "baz";
 
-if (true) print "bar";
+if (false or false) print "world";
+if (true or "world") print "world";
 
-
-if (true) {
-  print "block body";
-}
-
-
-var a = false;
-if (a = true) {
-  print (a == true);
-}
-
-var stage = "unknown";
-var age = 50;
-if (age < 18) { stage = "child"; }
-if (age >= 18) { stage = "adult"; }
-print stage;
-
-var isAdult = age >= 18;
-if (isAdult) { print "eligible for voting: true"; }
-if (!isAdult) { print "eligible for voting: false"; }
-
-if (true) print "if branch"; else print "else branch";
+if (24 or "bar") print "bar";
+if ("bar" or "bar") print "bar";

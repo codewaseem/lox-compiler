@@ -209,8 +209,40 @@ pub const Parser = struct {
         return self.assignment();
     }
 
+    fn orExpr(self: *Self) Error!*Expr {
+        var expr = try self.andExpr();
+
+        while (self.token_consumer.match(.{.OR})) {
+            const operator = self.token_consumer.previous();
+            const right = try self.andExpr();
+            expr = try self.newExpr(Expr{ .Logical = .{
+                .left = expr,
+                .operator = operator,
+                .right = right,
+            } });
+        }
+
+        return expr;
+    }
+
+    fn andExpr(self: *Self) Error!*Expr {
+        var expr = try self.equality();
+
+        while (self.token_consumer.match(.{.AND})) {
+            const operator = self.token_consumer.previous();
+            const right = try self.equality();
+            expr = try self.newExpr(Expr{ .Logical = .{
+                .left = expr,
+                .operator = operator,
+                .right = right,
+            } });
+        }
+
+        return expr;
+    }
+
     fn assignment(self: *Self) Error!*Expr {
-        const expr = try self.equality();
+        const expr = try self.orExpr();
 
         if (self.token_consumer.match(.{.EQUAL})) {
             const equals = self.token_consumer.previous();

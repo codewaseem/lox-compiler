@@ -9,8 +9,10 @@ const GroupingExpression = types.GroupingExpression;
 const UnaryExpression = types.UnaryExpression;
 const BinaryExpression = types.BinaryExpression;
 const AssignmentExpression = types.AssignmentExpression;
+const LogicalExpression = types.LogicalExpression;
 const Stmt = types.Stmt;
 const Token = types.Token;
+const TokenType = types.TokenType;
 const Environment = types.Envirnoment;
 const IfStmt = types.IfStmt;
 
@@ -345,6 +347,17 @@ pub const Interpreter = struct {
         return value;
     }
 
+    fn evaluateLogicalExpression(self: *Self, expr: LogicalExpression) InterpreterErrorSet!Value {
+        const left = try self.evaluate(expr.left);
+
+        if (expr.operator.type == TokenType.OR) {
+            if (self.isTruthy(left)) return left;
+        } else {
+            if (!self.isTruthy(left)) return left;
+        }
+        return self.evaluate(expr.right);
+    }
+
     fn evaluate(self: *Self, expression: *Expr) InterpreterErrorSet!Value {
         switch (expression.*) {
             .Literal => |*literal| return self.evaluateLiteral(literal),
@@ -353,6 +366,7 @@ pub const Interpreter = struct {
             .Binary => |*binary| return self.evaluateBinaryExpression(binary),
             .Assign => |*assign| return self.evaluateAssignment(assign),
             .Var => |token| return self.evaluateVarExpression(token),
+            .Logical => |logical| return self.evaluateLogicalExpression(logical),
         }
     }
 };

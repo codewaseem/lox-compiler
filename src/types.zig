@@ -204,10 +204,17 @@ pub const AssignmentExpression = struct {
     value: *Expr,
 };
 
+pub const LogicalExpression = struct {
+    left: *Expr,
+    right: *Expr,
+    operator: Token,
+};
+
 pub const Expr = union(enum) {
     Binary: BinaryExpression,
     Unary: UnaryExpression,
     Group: GroupingExpression,
+    Logical: LogicalExpression,
     Literal: LiteralExpression,
     Assign: AssignmentExpression,
     Var: Token,
@@ -242,6 +249,13 @@ pub const Expr = union(enum) {
             },
             .Var => |token| {
                 try std.fmt.format(writer, "{s}", .{token.lexeme});
+            },
+            .Logical => |logical| {
+                try std.fmt.format(writer, "{} {s} {}", .{
+                    logical.left,
+                    logical.operator.lexeme,
+                    logical.right,
+                });
             },
         }
     }
