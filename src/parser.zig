@@ -22,6 +22,8 @@ const Error = error{
     ExpectedRightBrace,
     ExpectedLeftParenAfterIf,
     ExpectedRightParenAfterIf,
+    ExpectedLeftParenAfterWhile,
+    ExpectedRightParenAfterWhile,
 };
 
 pub const ParserError = struct {
@@ -96,6 +98,12 @@ pub const ParserError = struct {
             },
             Error.ExpectedRightParenAfterIf => {
                 try std.fmt.format(writer, "Expect ')' after if condition.", .{});
+            },
+            Error.ExpectedLeftParenAfterWhile => {
+                try std.fmt.format(writer, "Expect '(' after 'while'.\n", .{});
+            },
+            Error.ExpectedRightParenAfterWhile => {
+                try std.fmt.format(writer, "Expect ')' after condition.", .{});
             },
         }
     }
@@ -398,6 +406,21 @@ pub const Parser = struct {
         };
     }
 
+    pub fn whileStatement(self: *Self) Error!Stmt {
+        _ = try self.token_consumer.consume(.LEFT_PAREN, Error.ExpectedLeftParenAfterIf);
+        const condition = try self.expression();
+        _ = try self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedLeftParenAfterIf);
+
+        const block = try self.statement();
+
+        return Stmt{
+            .While = .{
+                .condition = condition,
+                .block = try Stmt.new(self.allocator, block),
+            },
+        };
+    }
+
     pub fn statement(self: *Self) Error!Stmt {
         if (self.token_consumer.match(.{.IF})) {
             return self.ifStatement();
@@ -405,6 +428,10 @@ pub const Parser = struct {
 
         if (self.token_consumer.match(.{.PRINT})) {
             return self.printStatement();
+        }
+
+        if (self.token_consumer.match(.{.WHILE})) {
+            return self.whileStatement();
         }
 
         if (self.token_consumer.match(.{.LEFT_BRACE})) {

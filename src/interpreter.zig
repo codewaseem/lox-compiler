@@ -15,6 +15,7 @@ const Token = types.Token;
 const TokenType = types.TokenType;
 const Environment = types.Envirnoment;
 const IfStmt = types.IfStmt;
+const WhileStmt = types.WhileStmt;
 
 pub const InterpreterErrorSet = error{
     OutOfMemory,
@@ -119,6 +120,9 @@ pub const Interpreter = struct {
             .If => |if_stmt| {
                 try self.interpretIfBlock(if_stmt);
             },
+            .While => |stmt| {
+                try self.interpretWhileBlock(stmt);
+            },
         }
     }
 
@@ -127,6 +131,11 @@ pub const Interpreter = struct {
             try self.interpretStatement(stmt.then_branch.*);
         } else if (stmt.else_branch) |b| {
             try self.interpretStatement(b.*);
+        }
+    }
+    fn interpretWhileBlock(self: *Self, stmt: WhileStmt) InterpreterErrorSet!void {
+        while (self.isTruthy(try self.evaluate(stmt.condition))) {
+            try self.interpretStatement(stmt.block.*);
         }
     }
 

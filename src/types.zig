@@ -272,12 +272,18 @@ pub const IfStmt = struct {
     else_branch: ?*Stmt = null,
 };
 
+pub const WhileStmt = struct {
+    condition: *Expr,
+    block: *Stmt,
+};
+
 pub const Stmt = union(enum) {
     Expression: *Expr,
     Print: *Expr,
     Var: Variable,
     Block: []const Stmt,
     If: IfStmt,
+    While: WhileStmt,
 
     pub fn new(allocator: std.mem.Allocator, value: Stmt) !*Stmt {
         const stmt_ptr = try allocator.create(Stmt);
