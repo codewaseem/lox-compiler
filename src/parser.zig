@@ -24,6 +24,9 @@ const Error = error{
     ExpectedRightParenAfterIf,
     ExpectedLeftParenAfterWhile,
     ExpectedRightParenAfterWhile,
+    ExpectedLeftParenAfterFor,
+    ExpectedSemicolonAfterLoopCondition,
+    ExpectedRightParenAfterClauses,
 };
 
 pub const ParserError = struct {
@@ -75,14 +78,14 @@ pub const ParserError = struct {
             Error.ExpectedVariableName => {
                 try std.fmt.format(
                     writer,
-                    "[line {d}] Error: Expected variable name.",
+                    "[line {d}] Error: Expected variable name.\n",
                     .{value.token.line},
                 );
             },
             Error.InvalidAssignmentTarget => {
                 try std.fmt.format(
                     writer,
-                    "[line {d}] Error: Invalid assignment target.",
+                    "[line {d}] Error: Invalid assignment target.\n",
                     .{value.token.line},
                 );
             },
@@ -97,13 +100,22 @@ pub const ParserError = struct {
                 try std.fmt.format(writer, "Expect '(' after 'if'.\n", .{});
             },
             Error.ExpectedRightParenAfterIf => {
-                try std.fmt.format(writer, "Expect ')' after if condition.", .{});
+                try std.fmt.format(writer, "Expect ')' after if condition.\n", .{});
             },
             Error.ExpectedLeftParenAfterWhile => {
                 try std.fmt.format(writer, "Expect '(' after 'while'.\n", .{});
             },
             Error.ExpectedRightParenAfterWhile => {
-                try std.fmt.format(writer, "Expect ')' after condition.", .{});
+                try std.fmt.format(writer, "Expect ')' after condition.\n", .{});
+            },
+            Error.ExpectedLeftParenAfterFor => {
+                try std.fmt.format(writer, "Expect '(' after 'for'.\n", .{});
+            },
+            Error.ExpectedSemicolonAfterLoopCondition => {
+                try std.fmt.format(writer, "Expect ';' after loop condition\n", .{});
+            },
+            Error.ExpectedRightParenAfterClauses => {
+                try std.fmt.format(writer, "Expected ')' after for clauses.\n", .{});
             },
         }
     }
@@ -421,7 +433,69 @@ pub const Parser = struct {
         };
     }
 
+    pub fn forStatement(self: *Self) Error!Stmt {
+        _ = try self.token_consumer.consume(.LEFT_PAREN, Error.ExpectedLeftParenAfterFor);
+        var initializer: ?Stmt = null;
+
+        if (self.token_consumer.match(.{.SEMICOLON})) {
+            initializer = null;
+        } else if (self.token_consumer.match(.{.VAR})) {
+            initializer = try self.varDeclaration();
+        } else {
+            initializer = try self.expressionStatement();
+        }
+
+        var condition: ?*Expr = null;
+        if (!self.token_consumer.check(.SEMICOLON)) {
+            condition = try self.expression();
+        }
+        _ = try self.token_consumer.consume(
+            .SEMICOLON,
+            Error.ExpectedSemicolonAfterLoopCondition,
+        );
+
+        var incrementer: ?*Expr = null;
+        if (!self.token_consumer.check(.RIGHT_PAREN)) {
+            incrementer = try self.expression();
+        }
+        _ = try self.token_consumer.consume(.RIGHT_PAREN, Error.ExpectedRightParenAfterClauses);
+
+        var body = try self.statement();
+
+        if (incrementer) |inc| {
+            var stmts = std.ArrayList(Stmt).init(self.allocator);
+            try stmts.append(body);
+            try stmts.append(Stmt{ .Expression = inc });
+
+            body = .{ .Block = stmts.items };
+        }
+
+        if (condition == null) {
+            condition = try self.newExpr(Expr{ .Literal = .{ .bool = true } });
+        }
+
+        body = Stmt{
+            .While = .{ .condition = condition.?, .block = try Stmt.new(
+                self.allocator,
+                body,
+            ) },
+        };
+
+        if (initializer) |i| {
+            var stmts = std.ArrayList(Stmt).init(self.allocator);
+            try stmts.append(i);
+            try stmts.append(body);
+            body = Stmt{ .Block = stmts.items };
+        }
+
+        return body;
+    }
+
     pub fn statement(self: *Self) Error!Stmt {
+        if (self.token_consumer.match(.{.FOR})) {
+            return self.forStatement();
+        }
+
         if (self.token_consumer.match(.{.IF})) {
             return self.ifStatement();
         }

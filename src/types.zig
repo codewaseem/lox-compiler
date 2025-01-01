@@ -310,10 +310,16 @@ pub const Stmt = union(enum) {
                 }
             },
             .If => |if_statement| {
-                try std.fmt.format(writer, "if ({}) \n\t then {} \n\t else {}", .{
+                try std.fmt.format(writer, "if ({?}) \n\t then {?} \n\t else {?}", .{
                     if_statement.condition,
                     if_statement.then_branch,
                     if_statement.else_branch,
+                });
+            },
+            .While => |while_stmt| {
+                try std.fmt.format(writer, "while ({?}) \n\t {{ {%s} }}", .{
+                    while_stmt.condition,
+                    while_stmt.block,
                 });
             },
         }
