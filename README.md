@@ -27,24 +27,40 @@ challenge. This challenge will start from chapter 4,
 **Note**: If you're viewing this repo on GitHub, head over to
 [codecrafters.io](https://codecrafters.io) to try the challenge.
 
-# Passing the first stage
 
-The entry point for your program is in `src/main.zig`. Study and uncomment the
-relevant code, and push your changes to pass the first stage:
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+# Implementation Details
+
+This is a Turing-complete implementation of the Lox interpreter in Zig, following the classic phases of interpretation:
+
+## 1. Lexical Analysis (Scanner)
+- Converts source code into tokens
+- Handles identifiers, keywords, literals, and operators
+- Provides detailed error reporting for invalid characters
+
+## 2. Syntactic Analysis (Parser)
+- Builds Abstract Syntax Tree (AST) from tokens
+- Implements recursive descent parsing
+- Supports expressions, statements, and control flow
+
+## 3. Execution (Interpreter)
+- Tree-walk interpreter that executes the AST
+- Manages runtime environment and variable scoping
+- Supports arithmetic operations, strings, and control flow
+- Handles runtime error reporting
+
+## Project Structure
+```
+src/
+├── main.zig       # Entry point and command handling
+├── scanner.zig    # Lexical analysis
+├── parser.zig     # Syntactic analysis
+├── interpreter.zig # Execution engine
+└── types.zig      # Core type definitions
 ```
 
-Time to move on to the next stage!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `zig (0.13+)` installed locally
-2. Run `./your_program.sh` to run your program, which is implemented in
-   `src/main.zig`.
-3. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## Features
+- Variable declarations and assignments
+- Arithmetic and logical operations
+- Control flow (if, while, for)
+- Runtime error handling
